@@ -1,0 +1,7 @@
+*.png
+*.jpg
+__pycache__/
+*.pyc
+old/
+downloaded_data/
+examples/
