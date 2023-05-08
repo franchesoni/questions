@@ -15,13 +15,25 @@ def print_memory():
     print(k, v)
 
 def make_binary_label_geq5(label):
-    return torch.tensor(0) if label <= 4 else torch.tensor(1)
+    if isinstance(label, torch.Tensor) or isinstance(label, np.ndarray):
+        label = 1*(label >= 5)
+    elif isinstance(label, list):
+        label = [1*(l >= 5) for l in label]
+    return label
 
 def make_binary_label_last(label):
-    return torch.tensor(0) if label < 9 else torch.tensor(1)
+    if isinstance(label, torch.Tensor) or isinstance(label, np.ndarray):
+        label = 1*(label == 9)
+    elif isinstance(label, list):
+        label = [1*(l == 9) for l in label]
+    return label
 
 def make_binary_label_odd(label):
-    return torch.tensor(0) if label % 2 == 0 else torch.tensor(1)
+    if isinstance(label, torch.Tensor) or isinstance(label, np.ndarray):
+        label = 1*(label % 2 == 1)
+    elif isinstance(label, list):
+        label = [1*(l % 2 == 1) for l in label]
+    return label
 
 def get_binarizer_fn(binarizer):
     if binarizer is None:
@@ -130,39 +142,71 @@ class InMemoryDataset:
         if binarizer_fn is not None:
             self.targets = binarizer_fn(self.targets)
         if isinstance(self.targets, torch.Tensor):
-            self.targets = self.targets.detach().requires_grad_(False)
+            self.targets = self.targets.detach().requires_grad_(False).float()
         else:
-            self.targets = torch.tensor(self.targets)
+            self.targets = torch.tensor(self.targets).float()
         if use_only_first:
             self.data = self.data[:use_only_first]
             self.targets = self.targets[:use_only_first]
         self.indices = torch.arange(len(self.data))
+        if self.data.shape[1] == 1:
+            self.data = transforms.Normalize((0.1307,), (0.3081,))(self.data / self.data.max())
+        elif self.data.shape[1] == 3:
+            self.data = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))(self.data / self.data.max())
+
+    def __len__(self):
+        assert len(self.data) == len(self.indices)
+        return len(self.data)
+        
+
+    def to(self, device):
+        self.data = self.data.to(device)
+        self.targets = self.targets.to(device) if self.targets is not None else None
+        self.indices = self.indices.to(device)
+        return self
+
+    def select_indices(self, selected_indices):
+        data = self.data[selected_indices]
+        targets = self.targets[selected_indices] if self.targets is not None else None
+        indices = self.indices[selected_indices]
+        return data, targets, indices
+
+    def update_indices(self, selected_indices):
+        self.data, self.targets, self.indices = self.select_indices(selected_indices)
+
+    def get_new_ds_from_indices(self, selected_indices):
+        return InMemoryDatasetFromAttributes(*self.select_indices(selected_indices))
+
+class InMemoryDatasetFromAttributes(InMemoryDataset):
+    def __init__(self, data, targets, indices):
+        self.data = data
+        self.targets = targets
+        self.indices = indices
 
 
 
 
-def get_dataset(dataset_name, binarizer=None, use_only_first=5000):
+
+def get_dataset(dataset_name, binarizer=None, use_only_first=5000, use_only_first_test=100):
     train_ds, test_ds = get_torchvision_dataset(dataset_name, binarizer)
     binarizer_fn = get_binarizer_fn(binarizer)
-    train_ds, test_ds = InMemoryDataset(train_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first), InMemoryDataset(test_ds, binarizer_fn=binarizer_fn)
+    train_ds = InMemoryDataset(train_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first)
+    test_ds = InMemoryDataset(test_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first_test)
     return train_ds, test_ds
 
-class UnlabeledWrapper:
+class UnlabeledWrapper(InMemoryDataset):
     def __init__(self, wrapped_dataset):
         self.data = wrapped_dataset.data
         self.indices = wrapped_dataset.indices
         self.targets = None
 
-    def select_indices(self, selected_indices):
-        self.data = self.data[selected_indices]
-        self.indices = self.indices[selected_indices]
-        return self
+
         
 
 def get_labeled_unlabeled(train_dataset, labeled_indices):
-    labeled_ds = train_dataset[labeled_indices]
+    labeled_ds = train_dataset.get_new_ds_from_indices(labeled_indices)
     unlabeled_indices = list(set(range(len(train_dataset))) - set(labeled_indices))
-    unlabeled_ds = UnlabeledWrapper(train_dataset).select_indices(unlabeled_indices)  # indices are needed for selection and we unlabel the dataset to prove we aren't cheating
+    unlabeled_ds = UnlabeledWrapper(train_dataset).get_new_ds_from_indices(unlabeled_indices)  # indices are needed for selection and we unlabel the dataset to prove we aren't cheating
     return labeled_ds, unlabeled_ds
 
 

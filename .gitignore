@@ -5,3 +5,4 @@ __pycache__/
 old/
 downloaded_data/
 examples/
+*.json

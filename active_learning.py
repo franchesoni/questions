@@ -23,7 +23,7 @@ class Strategy(ABC):
 
 class RandomSampling(Strategy):
     def get_index_to_label_next(self, predictor, unlabeled_dataset):
-        index_to_label_next = random.choice(unlabeled_dataset.indices)
+        index_to_label_next = int(random.choice(unlabeled_dataset.indices))
         return index_to_label_next
 
 def get_al_curve(seed, predictor, strategy, train_dataset, test_dataset, initial_labeled_indices):
@@ -44,16 +44,3 @@ def get_al_curve(seed, predictor, strategy, train_dataset, test_dataset, initial
   return curve
 
 
-def run_active_learning(experiment_name='random', dataset_index=1, binarizer='geq5', pretrained=False, seeds=[0], use_only_first=10):
-    dataset_name = DATASET_NAMES[dataset_index]
-    train_ds, test_ds = get_dataset(dataset_name, binarizer, use_only_first=use_only_first)
-    n_channels = train_ds[0][0].shape[0]
-    predictor = get_resnet(pretrained=pretrained, n_channels=n_channels, compile=True)
-    if experiment_name == 'random':
-        strategy = RandomSampling()
-    curves = []
-    for seed in seeds:
-        curve = get_al_curve(seed, predictor, strategy, train_ds, test_ds, initial_labeled_indices=[0], experiment_name=experiment_name)
-        np.save(f'curve_{experiment_name}_seed_{seed}.npy', curve)
-        curves.append(curve)
-    plot_curves(curves, experiment_name=experiment_name)
