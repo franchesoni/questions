@@ -6,3 +6,5 @@ old/
 downloaded_data/
 examples/
 *.json
+*.profile
+*.dot
