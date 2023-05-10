@@ -6,7 +6,8 @@ import torch
 import gc
 
 from engine import optimizer_setup, seed_everything, fit_predictor, evaluate_predictor
-from data import get_labeled_unlabeled
+from data import InMemoryDataset, get_labeled_unlabeled
+from predictor import compute_embedding
 
 
 class Strategy(ABC):
@@ -17,6 +18,13 @@ class Strategy(ABC):
     def get_index_to_label_next(self, predictor, unlabeled_dataset):
         """Should return index_to_label_next"""
         pass
+
+    def update(self, predictor, labeled_dataset, unlabeled_dataset):
+        return self
+
+
+
+
 
 
 class RandomSampling(Strategy):
@@ -34,6 +42,39 @@ class UncertaintySampling(Strategy):
                 unlabeled_dataset.indices[torch.argmin(certainty)]
             )
         return index_to_label_next
+
+class CoreSet(Strategy):
+
+    """
+    Implementation of CoreSet :footcite:`sener2018active` Strategy. A diversity-based
+    approach using coreset selection. The embedding of each example is computed by the network’s
+    penultimate layer and the samples at each round are selected using a greedy furthest-first
+    traversal conditioned on all labeled examples.
+
+    Stolen from distil library
+    """
+
+    def update(self, predictor, labeled_dataset: InMemoryDataset, unlabeled_dataset):
+        predictor.eval()
+        with torch.no_grad():
+            self.labeled_embeddings = compute_embedding(predictor, labeled_dataset.data)
+        return self
+        
+    def _furthest_first(self, unlabeled_embeddings, labeled_embeddings):
+        if labeled_embeddings.shape[0] == 0:
+            raise ValueError("labeled_embeddings must be non-empty")
+        dist_ctr = torch.cdist(unlabeled_embeddings, labeled_embeddings, p=2)
+        min_dist = torch.min(dist_ctr, dim=1)[0]
+        return torch.argmax(min_dist)
+
+    def get_index_to_label_next(self, predictor, unlabeled_dataset):
+        predictor.eval()
+        with torch.no_grad():
+            unlabeled_embeddings = compute_embedding(predictor, unlabeled_dataset.data)
+        furthest_unlabeled_index = self._furthest_first(unlabeled_embeddings, self.labeled_embeddings)
+        index_to_label_next = unlabeled_dataset.indices[furthest_unlabeled_index]
+        return int(index_to_label_next)
+
 
 
 def get_al_curve(
