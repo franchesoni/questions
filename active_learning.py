@@ -78,7 +78,7 @@ class CoreSet(Strategy):
 
 
 def get_al_curve(
-    predictor, strategy, train_dataset, test_dataset, initial_labeled_indices
+    max_queries, predictor, strategy, train_dataset, test_dataset, initial_labeled_indices
 ):
     curve = [None] * (len(initial_labeled_indices) - 1)
     labeled_indices = initial_labeled_indices
@@ -89,7 +89,8 @@ def get_al_curve(
     eval_loss_fn = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
     pbar = tqdm.tqdm(total=len(train_dataset) - len(initial_labeled_indices))
-    while len(unlabeled_ds) > 0:  # fit, get point, label
+    n_queries = 0
+    while n_queries < max_queries and len(unlabeled_ds) > 0:  # fit, get point, label
         labeled_ds, unlabeled_ds = get_labeled_unlabeled(
             train_dataset, labeled_indices
         )  # unlabeled_ds also stores the unlabeled indices
@@ -104,6 +105,7 @@ def get_al_curve(
         index_to_label_next = strategy(predictor, unlabeled_ds)
         labeled_indices = labeled_indices + [index_to_label_next]
         labeled_ds, unlabeled_ds = get_labeled_unlabeled(train_dataset, labeled_indices)
+        n_queries += 1
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
         gc.collect()
