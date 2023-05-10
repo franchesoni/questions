@@ -10,7 +10,6 @@ def get_power_01(size):
     return [[int(d) for d in np.binary_repr(i, width=size)] for i in range(2**size)]
 
 
-
 def are_consistent_inc_cor(incorrect_guesses, correct_guess):
     """Checks if the incorrect guesses are consistent with the correct guess.
     This is, no incorrect guess can be included in the correct guess."""
@@ -19,7 +18,10 @@ def are_consistent_inc_cor(incorrect_guesses, correct_guess):
         inc_indices, inc_labels = incorrect_guess
         is_included = True
         for iind, ilabel in zip(inc_indices, inc_labels):
-            if iind not in set(cor_indices) or ilabel != cor_labels[cor_indices.index(iind)]:
+            if (
+                iind not in set(cor_indices)
+                or ilabel != cor_labels[cor_indices.index(iind)]
+            ):
                 is_included = False
                 break
         if is_included:
@@ -36,8 +38,6 @@ def are_consistent_cor_cor(guess1, guess2):
             if lab1[i] != lab2[ind2.index(ind1[i])]:
                 return False
     return True
-
-
 
 
 def take_differing_bits(guess, ref_guess):
@@ -73,6 +73,7 @@ def remove_differing_bits(old_guesses, new_guess):
                 old_indices.pop(diff_ind)
     return old_guesses
 
+
 def are_parent_and_child(parent_guess, child_guess):
     """Checks if the parent contains the child by containing the same indices and labels."""
     parent_inds, parent_labels = parent_guess
@@ -89,11 +90,18 @@ def are_parent_and_child(parent_guess, child_guess):
 
 def remove_parents(state):
     new_state = state
-    incorrect = remove_duplicates(new_state['incorrect'])
-    incorrect = [guess for guess in incorrect if not any(are_parent_and_child(guess, other) for other in incorrect if guess != other)]
-    changed = len(incorrect) != len(state['incorrect'])
-    new_state['incorrect'] = incorrect
+    incorrect = remove_duplicates(new_state["incorrect"])
+    incorrect = [
+        guess
+        for guess in incorrect
+        if not any(
+            are_parent_and_child(guess, other) for other in incorrect if guess != other
+        )
+    ]
+    changed = len(incorrect) != len(state["incorrect"])
+    new_state["incorrect"] = incorrect
     return new_state, changed
+
 
 def filter_incorrect_based_on_correct_guess(incorrect_guesses, correct_guess):
     """Assume that guess is correct. If an incorrect guess differs with guess, remove it.
@@ -105,10 +113,7 @@ def filter_incorrect_based_on_correct_guess(incorrect_guesses, correct_guess):
         # if any entry is different than the one in the guess, remove it
         removed = False
         for ind, label in zip(indices, g):
-            if (
-                ind in guess_indices
-                and label != guess_labels[guess_indices.index(ind)]
-            ):
+            if ind in guess_indices and label != guess_labels[guess_indices.index(ind)]:
                 removed = True
                 break
         if not removed:  # filter
@@ -121,35 +126,39 @@ def filter_incorrect_based_on_correct_guess(incorrect_guesses, correct_guess):
 
 def filter_based_on_labels(state):
     new_state = state
-    new_incorrect_guesses = new_state['incorrect']
+    new_incorrect_guesses = new_state["incorrect"]
 
     changed = False
-    for label in new_state['labeled']:
-        new_incorrect_guesses, has_changed = filter_incorrect_based_on_correct_guess(new_incorrect_guesses, ([label[0]], [label[1]]))
+    for label in new_state["labeled"]:
+        new_incorrect_guesses, has_changed = filter_incorrect_based_on_correct_guess(
+            new_incorrect_guesses, ([label[0]], [label[1]])
+        )
         changed = changed or has_changed
 
-    new_state['incorrect'] = new_incorrect_guesses
+    new_state["incorrect"] = new_incorrect_guesses
     return new_state, changed
+
 
 def create_new_labels(state):
     """Creates new labels based on those incorrect guesses of only one index"""
     new_state = state
-    new_incorrect_guesses = new_state['incorrect']
-    new_labeled = new_state['labeled']
+    new_incorrect_guesses = new_state["incorrect"]
+    new_labeled = new_state["labeled"]
 
     changed = False
     ind_to_remove = []
     for i, guess in enumerate(new_incorrect_guesses):
         indices, labels = guess
         if len(indices) == 1:
-            new_label = (indices[0], 1-labels[0])
+            new_label = (indices[0], 1 - labels[0])
             assert not any(
                 new_label[0] == idx for idx, _ in new_labeled
             ), "annotation already present"
             new_labeled.append(new_label)
             changed = True
-    new_state['labeled'] = new_labeled
+    new_state["labeled"] = new_labeled
     return new_state, changed
+
 
 def simplify_1bit_differences_individual(guess, other_guesses, allow_equal=False):
     """Remove one bit differences between guess and other_guesses."""
@@ -171,25 +180,29 @@ def simplify_1bit_differences_individual(guess, other_guesses, allow_equal=False
                     to_remove.append((j, diff_at))
     return to_remove
 
+
 def remove_duplicates(incorrect):
     return [guess for i, guess in enumerate(incorrect) if guess not in incorrect[:i]]
+
 
 def simplify_1bit_differences(state):
     """Remove one bit differences between incorrect guesses."""
     new_state = state
-    incorrect = remove_duplicates(new_state['incorrect'])
+    incorrect = remove_duplicates(new_state["incorrect"])
 
     i = 0
-    while i < len(incorrect)-1:
+    while i < len(incorrect) - 1:
         guess = incorrect[i]
-        to_remove = simplify_1bit_differences_individual(guess, incorrect[i+1:], allow_equal=False)
+        to_remove = simplify_1bit_differences_individual(
+            guess, incorrect[i + 1 :], allow_equal=False
+        )
         for j, diff_at in to_remove:
-            # remove from j 
-            indices_j, labels_j = incorrect[i+1:][j]
+            # remove from j
+            indices_j, labels_j = incorrect[i + 1 :][j]
             ind = indices_j.index(diff_at)
             labels_j.pop(ind)
             indices_j.pop(ind)
-        
+
         incorrect = remove_duplicates(incorrect)  # will keep the first one
         if len(to_remove) > 0:
             incorrect.pop(i)
@@ -197,28 +210,31 @@ def simplify_1bit_differences(state):
         else:
             i += 1
 
-    changed = incorrect != new_state['incorrect']
-    new_state['incorrect'] = incorrect
+    changed = incorrect != new_state["incorrect"]
+    new_state["incorrect"] = incorrect
     return new_state, changed
-    
 
 
-
-
-
-
-
-def simplify_state(state, remove_parents_flag=True, filter_based_on_labels_flag=True, create_new_labels_flag=True, simplify_1bit_differences_flag=True):
+def simplify_state(
+    state,
+    remove_parents_flag=True,
+    filter_based_on_labels_flag=True,
+    create_new_labels_flag=True,
+    simplify_1bit_differences_flag=True,
+):
     """Creates a simpler state without losing any information.
-    We remove parents of incorrect guesses, filter incorrect guesses based on labels, simplify incorrect guesses if there are one bit differences and make incorrect guesses of length 1 new labels."""
-    assert len(state['incorrect']) == 0 or len(state['incorrect'][0]) > 0, "incorrect guesses should be non-empty"
+    We remove parents of incorrect guesses, filter incorrect guesses based on labels, simplify incorrect guesses if there are one bit differences and make incorrect guesses of length 1 new labels.
+    """
+    assert (
+        len(state["incorrect"]) == 0 or len(state["incorrect"][0]) > 0
+    ), "incorrect guesses should be non-empty"
     new_state = deepcopy(state)  # if you remove it breaks
 
     while True:
         if remove_parents_flag:
             new_state, changed = remove_parents(new_state)
             remove_parents_flag = False
-        
+
         if filter_based_on_labels_flag:
             new_state, changed = filter_based_on_labels(new_state)
             filter_based_on_labels_flag = False
@@ -227,29 +243,26 @@ def simplify_state(state, remove_parents_flag=True, filter_based_on_labels_flag=
                 create_new_labels_flag = True
                 simplify_1bit_differences_flag = True
                 continue
-        
+
         if create_new_labels_flag:
             new_state, changed = create_new_labels(new_state)
             create_new_labels_flag = False
             if changed:
                 filter_based_on_labels_flag = True
                 continue
-        
+
         if simplify_1bit_differences_flag:
             new_state, changed = simplify_1bit_differences(new_state)
             simplify_1bit_differences_flag = False
             if changed:
-                remove_parents_flag= True
+                remove_parents_flag = True
                 create_new_labels_flag = True
                 simplify_1bit_differences_flag = True
                 continue
-        
+
         break
 
     return new_state
-        
-
-
 
 
 def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=True):
@@ -263,29 +276,39 @@ def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=
     if not efficient:
         if is_correct:
             for i, label in zip(guess[0], guess[1]):
-                if (i, label) not in state['labeled']:
-                    state['labeled'].append((i, label))
+                if (i, label) not in state["labeled"]:
+                    state["labeled"].append((i, label))
                 else:
                     raise ValueError("label already present")
             return simplify_state(state)
         else:
-            state['incorrect'].append(guess)
+            state["incorrect"].append(guess)
             return simplify_state(state)
     if guards and (state != simplify_state(state)):
         raise ValueError("state is not simplified")
     new_state = state if inplace else deepcopy(state)
-    labeled, incorrect = new_state['labeled'], new_state['incorrect']
+    labeled, incorrect = new_state["labeled"], new_state["incorrect"]
     guess_indices, guess_labels = guess
 
     if is_correct:
         # the intersection between current labeled indices and correct guess indices should be empty
-        assert len(set(guess_indices).intersection(set([idx for idx, _ in labeled]))) == 0, "you should not guess things you know" 
+        assert (
+            len(set(guess_indices).intersection(set([idx for idx, _ in labeled]))) == 0
+        ), "you should not guess things you know"
         # Update incorrect guesses, remove those that are inconsistent with the correct guess
-        incorrect, has_changed = filter_incorrect_based_on_correct_guess(incorrect, guess)
+        incorrect, has_changed = filter_incorrect_based_on_correct_guess(
+            incorrect, guess
+        )
         # note that now some incorrect guesses could be used as labels, update the labels
-        new_state = {"labeled": labeled, 'incorrect': incorrect}
-        new_state = simplify_state(new_state, remove_parents_flag=True, filter_based_on_labels_flag=False, create_new_labels_flag=True, simplify_1bit_differences_flag=True)
-        labeled, incorrect = new_state['labeled'], new_state['incorrect']
+        new_state = {"labeled": labeled, "incorrect": incorrect}
+        new_state = simplify_state(
+            new_state,
+            remove_parents_flag=True,
+            filter_based_on_labels_flag=False,
+            create_new_labels_flag=True,
+            simplify_1bit_differences_flag=True,
+        )
+        labeled, incorrect = new_state["labeled"], new_state["incorrect"]
 
         # Update labeled examples if needed
         to_append = []
@@ -297,9 +320,15 @@ def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=
         for element in to_append:
             labeled.append(element)
 
-        new_state = {"labeled": labeled, 'incorrect': incorrect}
-        new_state = simplify_state(new_state, remove_parents_flag=False, filter_based_on_labels_flag=True, create_new_labels_flag=False, simplify_1bit_differences_flag=False)
-        
+        new_state = {"labeled": labeled, "incorrect": incorrect}
+        new_state = simplify_state(
+            new_state,
+            remove_parents_flag=False,
+            filter_based_on_labels_flag=True,
+            create_new_labels_flag=False,
+            simplify_1bit_differences_flag=False,
+        )
+
     else:
         if len(guess_indices) == 1:  # if guess is single then we have a correct guess
             # Annotate label
@@ -308,10 +337,9 @@ def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=
                 new_correct_guess[0] == idx for idx, _ in labeled
             ), "annotation already present"
 
-
             # Call this function again for this guess
             return update_state(
-                {"labeled": labeled, 'incorrect': incorrect},
+                {"labeled": labeled, "incorrect": incorrect},
                 new_correct_guess,
                 True,
             )
@@ -324,7 +352,9 @@ def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=
         ]
 
         # Remove the different bit from the already present guesses
-        to_remove = simplify_1bit_differences_individual(guess, incorrect, allow_equal=False)
+        to_remove = simplify_1bit_differences_individual(
+            guess, incorrect, allow_equal=False
+        )
         create_new_labels_flag = False
         for j, diff_at in to_remove:
             ind = incorrect[j][0].index(diff_at)
@@ -335,35 +365,45 @@ def update_state(state, guess, is_correct, efficient=True, guards=True, inplace=
             if len(incorrect[j][0]) == 1:
                 # we have a new correct guess
                 create_new_labels_flag = True
-            
+
         if len(to_remove) == 0:
             incorrect.append((guess_indices, guess_labels))
-            new_state = {"labeled": labeled, 'incorrect': incorrect}
+            new_state = {"labeled": labeled, "incorrect": incorrect}
         else:
             # state shouldn't have changed here
-            new_state = simplify_state(new_state, filter_based_on_labels_flag=False, simplify_1bit_differences_flag=True, create_new_labels_flag=create_new_labels_flag)
+            new_state = simplify_state(
+                new_state,
+                filter_based_on_labels_flag=False,
+                simplify_1bit_differences_flag=True,
+                create_new_labels_flag=create_new_labels_flag,
+            )
     if guards:
         simplified_state = simplify_state(new_state)
         if simplified_state != new_state:
             raise ValueError("simplify_state should not change the state")
-        assert len(new_state['incorrect']) == 0 or len(new_state['incorrect'][0]) > 0, "incorrect guesses should be non-empty"
+        assert (
+            len(new_state["incorrect"]) == 0 or len(new_state["incorrect"][0]) > 0
+        ), "incorrect guesses should be non-empty"
     return new_state
+
 
 def generate_binary_vectors(N, n):
     results = []
     generate_binary_vectors_recursive(N, n, [], results)
     return sorted(results)
 
+
 def generate_binary_vectors_recursive(N, n, current, results):
     if N == 0:
         if n == 0:
             results.append(current)
         return
-    
+
     if n > 0:
-        generate_binary_vectors_recursive(N-1, n-1, current + [1], results)
-    
-    generate_binary_vectors_recursive(N-1, n, current + [0], results)
+        generate_binary_vectors_recursive(N - 1, n - 1, current + [1], results)
+
+    generate_binary_vectors_recursive(N - 1, n, current + [0], results)
+
 
 def get_best_guess(guess_length, state, inputs, predictor):
     # computes the best guess given n. For n = 1, this should be an active learning method (to-do)
@@ -371,7 +411,10 @@ def get_best_guess(guess_length, state, inputs, predictor):
     labeled_indices = set([idx for idx, _ in state["labeled"]])
     unlabeled_indices = [i for i in range(len(inputs)) if not i in labeled_indices]
     if guess_length == 1:  # randomly sample one unlabeled index
-        return ([np.random.choice(unlabeled_indices)], [0])  # your active learning method of choice
+        return (
+            [np.random.choice(unlabeled_indices)],
+            [0],
+        )  # your active learning method of choice
     else:
         # make a prediction over unlabeled inputs
         unlabeled_inputs = np.array([inputs[i] for i in unlabeled_indices])
@@ -381,31 +424,51 @@ def get_best_guess(guess_length, state, inputs, predictor):
         ordered_certain_indices = (np.argsort(certainty)[::-1]).tolist()
         slack = 4  # the lowest the fastest
 
-        sorted_certainties = certainty[ordered_certain_indices[:guess_length+slack]]
+        sorted_certainties = certainty[ordered_certain_indices[: guess_length + slack]]
         sorted_certainties_list = sorted_certainties.tolist()
+
         def key_fn(x):
             # certainties = np.abs(np.array([sorted_certainties[i] for i in x['indices']]) - np.array(x['inv_mask']))
-            certainties = np.array([sorted_certainties[i] for i in x['indices']])
+            certainties = np.array([sorted_certainties[i] for i in x["indices"]])
             return np.sum(np.log(certainties))
-        
+
         n_invertions = 0
         while n_invertions <= guess_length:
             invertion_masks = generate_binary_vectors(guess_length, n_invertions)
             # doing this outside a loop is better but slower
             # subsets = [{'indices':[list(sorted_certainties).index(x) for x in c], 'inv_mask':inv_mask} for inv_mask in invertion_masks for c in itertools.combinations(sorted_certainties, guess_length)]
             for inv_mask in invertion_masks:
-                subsets = [{'indices':[list(sorted_certainties).index(x) for x in c], 'inv_mask':inv_mask} for c in itertools.combinations(sorted_certainties, guess_length)]
+                subsets = [
+                    {
+                        "indices": [list(sorted_certainties).index(x) for x in c],
+                        "inv_mask": inv_mask,
+                    }
+                    for c in itertools.combinations(sorted_certainties, guess_length)
+                ]
                 # subsets.sort(key=lambda s: sum(log_certainties[i] for i in s), reverse=True)
                 subsets.sort(key=key_fn, reverse=True)
-                subsets = [{'indices':np.array(ordered_certain_indices)[s['indices']], 'inv_mask':s['inv_mask']} for s in subsets]
+                subsets = [
+                    {
+                        "indices": np.array(ordered_certain_indices)[s["indices"]],
+                        "inv_mask": s["inv_mask"],
+                    }
+                    for s in subsets
+                ]
                 # subsets = [{'indices':np.array(ordered_certain_indices)[s['indices']]} for s in subsets]
 
                 for sset_dict in subsets:
-                    most_certain_indices = sset_dict['indices']
-                    predictions = np.around(unlabeled_predictions[most_certain_indices]).astype(int)
-                    predictions = np.abs(predictions - np.array(sset_dict['inv_mask']))
-                    guess = ([unlabeled_indices[i] for i in most_certain_indices], predictions.tolist())
-                    if are_consistent_inc_cor(state['incorrect'], guess):  # no incorrect guess is included in guess
+                    most_certain_indices = sset_dict["indices"]
+                    predictions = np.around(
+                        unlabeled_predictions[most_certain_indices]
+                    ).astype(int)
+                    predictions = np.abs(predictions - np.array(sset_dict["inv_mask"]))
+                    guess = (
+                        [unlabeled_indices[i] for i in most_certain_indices],
+                        predictions.tolist(),
+                    )
+                    if are_consistent_inc_cor(
+                        state["incorrect"], guess
+                    ):  # no incorrect guess is included in guess
                         return guess
             n_invertions += 1
         raise RuntimeError("No valid guess found")
@@ -449,23 +512,25 @@ def incorrect_prob(incorrect_guesses, inputs, predictor):
             prob_union += (-1) ** (k + 1) * prob_inter
     return 1 - prob_union
 
-    
+
 def compute_prob(inputs, predictor, state, guess):
     # computes the probability of the guess being correct given by the predictor and the state
     guess_indices, guess_labels = guess
     labeled_indices = [i for i, _ in state["labeled"]]
     assert not any([i in labeled_indices for i in guess_indices])
-    incorrect_guesses = state['incorrect']
+    incorrect_guesses = state["incorrect"]
     if not are_consistent_inc_cor(incorrect_guesses, guess):
         raise ValueError("Provided guess is inconsistent with current state")
-    incorrect_guesses_given_guess, changed = filter_incorrect_based_on_correct_guess(incorrect_guesses, guess)
+    incorrect_guesses_given_guess, changed = filter_incorrect_based_on_correct_guess(
+        incorrect_guesses, guess
+    )
     prob = 1
     prob *= prob_of_guess(guess, inputs, predictor)
     if changed:
         prob *= incorrect_prob(incorrect_guesses_given_guess, inputs, predictor)
         prob /= incorrect_prob(incorrect_guesses, inputs, predictor)
     if prob < 0 or prob > 1:
-        ValueError('Probability should be in [0,1]')
+        ValueError("Probability should be in [0,1]")
     return prob
 
 
@@ -480,15 +545,17 @@ def transition(guess, state, inputs, predictor):
 
 
 def count_possible_guesses(incorrect_guesses):
-    support_incorrect = sorted(list(set([i for indices, _ in incorrect_guesses for i in indices])))  # support of incorrect guesses
+    support_incorrect = sorted(
+        list(set([i for indices, _ in incorrect_guesses for i in indices]))
+    )  # support of incorrect guesses
     count = 0
-    for v in range(2**len(support_incorrect)):
+    for v in range(2 ** len(support_incorrect)):
         makes_them_incorrect = True
         for inc_guess in incorrect_guesses:
             # check if this one is correct given the vector
             # first create the binary vector corresopnding to v
             all_digits_ok = True
-            binary_v = [int(i) for i in list(bin(v)[2:])] 
+            binary_v = [int(i) for i in list(bin(v)[2:])]
             binary_v += [0] * (len(support_incorrect) - len(binary_v))
             for ind, index in enumerate(inc_guess[0]):
                 guessed_label = inc_guess[1][ind]
@@ -504,7 +571,6 @@ def count_possible_guesses(incorrect_guesses):
     return count, len(support_incorrect)
 
 
-
 # Define the reward function
 def approx_cost_function(state, inputs, predictor):
     # Return the reward of a state when depth=0
@@ -512,8 +578,10 @@ def approx_cost_function(state, inputs, predictor):
     N = len(inputs)
     n = len(state["labeled"])
     # count the number of possible labelings
-    possible, support_size = count_possible_guesses(state['incorrect'])
-    log_number_of_possible_labelings = (N - n - support_size) + np.log2(1 + possible / (2**(N - n - support_size)))
+    possible, support_size = count_possible_guesses(state["incorrect"])
+    log_number_of_possible_labelings = (N - n - support_size) + np.log2(
+        1 + possible / (2 ** (N - n - support_size))
+    )
     # print(f"Number of possible guesses: {possible}")
     # print(f"Cost: {log_number_of_possible_labelings}")
     return log_number_of_possible_labelings
@@ -576,7 +644,7 @@ def select_node(state_node, N):
     leaves = get_leaves(state_node)
     non_terminal_leaves = [leaf for leaf in leaves if len(leaf.state["labeled"]) < N]
     if len(non_terminal_leaves) == 0:
-        return 'all nodes expanded'
+        return "all nodes expanded"
     return leaves[np.argmax([leaf.priority for leaf in non_terminal_leaves])]
 
 
@@ -603,7 +671,7 @@ def expand_node(state_node, max_n, inputs, predictor):
     best_cost = state_node.cost
     N = inputs.shape[0]
     n = len(state_node.action_children) + 1
-    while n <= max_n and n <= (N - len(state_node.state['labeled'])):
+    while n <= max_n and n <= (N - len(state_node.state["labeled"])):
         # expand
         best_guess = get_best_guess(n, state_node.state, inputs, predictor)
         next_states = transition(best_guess, state_node.state, inputs, predictor)
@@ -612,7 +680,9 @@ def expand_node(state_node, max_n, inputs, predictor):
         state_node.action_children.append(action_child)
         # udpate
         for state_child in action_child.state_children:
-            state_child.cost = approx_cost_function(state_child.state, inputs, predictor)
+            state_child.cost = approx_cost_function(
+                state_child.state, inputs, predictor
+            )
         update_action_cost_depth_0(action_child)
 
         if action_child.cost < best_cost:
@@ -648,8 +718,9 @@ def get_best_action(state_node):
         np.argmin([action_child.cost for action_child in state_node.action_children])
     ]
 
+
 def get_node_with_state(root_node, state):
-    """Explores the tree and returns the node with the given state using breadth first """
+    """Explores the tree and returns the node with the given state using breadth first"""
     queue = [root_node]
     while len(queue) > 0:
         node = queue.pop(0)
@@ -659,22 +730,22 @@ def get_node_with_state(root_node, state):
             queue.extend(action_child.state_children)
     return None
 
+
 def initialize_tree(root_indices):
     root_node = StateNode(root_indices)
     root_node.priority = 1  # trickle down priorities
     return root_node
 
-def tree_search(root_node, N, max_expansions, max_n, inputs, predictor):
 
+def tree_search(root_node, N, max_expansions, max_n, inputs, predictor):
     print("Expanding tree...")
     for i in tqdm.tqdm(range(max_expansions)):
-    # for i in range(max_expansions):
+        # for i in range(max_expansions):
         node = select_node(root_node, N)
-        if node == 'all nodes expanded':
+        if node == "all nodes expanded":
             break
         expand_node(node, max_n, inputs, predictor)
         update_parents(node, max_n, inputs, predictor)
-    
 
     best_action = get_best_action(root_node)
 

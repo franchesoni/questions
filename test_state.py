@@ -13,7 +13,6 @@ A state with no redundancy is the one with maximum number of labeled indices and
 from tree_and_state import get_power_01, are_parent_and_child, update_state
 
 
-
 def create_new_guess(avail_indices, incorrect_guesses):
     """Generates a new guess that isn't in the list of incorrect guesses and isn't a parent of any of the incorrect guesses.
     `avail_indices` is a list of indices that are available for guessing."""
@@ -22,11 +21,18 @@ def create_new_guess(avail_indices, incorrect_guesses):
         # now we make random guesses. We first sample a guess length
         guess_length = np.random.randint(1, len(avail_indices) + 1)
         # now we choose guess_length indices to guess
-        guess_indices = sorted(list(np.random.choice(avail_indices, guess_length, replace=False)))
+        guess_indices = sorted(
+            list(np.random.choice(avail_indices, guess_length, replace=False))
+        )
         # now we create a random binary guess over those indices
         guess_labels = list(np.random.randint(2, size=guess_length))
         guess = (guess_indices, guess_labels)
-        is_valid = (guess not in incorrect_guesses) and not any([are_parent_and_child(guess, incorrect_guess)  for incorrect_guess in incorrect_guesses])
+        is_valid = (guess not in incorrect_guesses) and not any(
+            [
+                are_parent_and_child(guess, incorrect_guess)
+                for incorrect_guess in incorrect_guesses
+            ]
+        )
         if is_valid:
             break
         if time.time() - st > 5:
@@ -49,7 +55,7 @@ def state_is_correct(state, L):
                 values_to_remove.append(possible_labeling)
         for v in values_to_remove:
             state_possible_labelings.remove(v)
-    for indices, guess in state['incorrect']:
+    for indices, guess in state["incorrect"]:
         values_to_remove = []
         for possible_labeling in state_possible_labelings:
             if np.all(np.array(possible_labeling)[indices] == np.array(guess)):
@@ -67,18 +73,15 @@ def state_is_correct(state, L):
     return is_correct
 
 
-
-
-
-
 def update_L(L, new_guess, is_correct):
     guess_indices, guess_labels = new_guess
     L = [
-                l
-                for l in L
-                if np.all(np.array(l)[guess_indices] == np.array(guess_labels)) == is_correct
-            ]
+        l
+        for l in L
+        if np.all(np.array(l)[guess_indices] == np.array(guess_labels)) == is_correct
+    ]
     return L
+
 
 def get_times(seed, size, use_L, check_correctness):
     assert size >= 1
@@ -88,12 +91,12 @@ def get_times(seed, size, use_L, check_correctness):
     power_01 = get_power_01(size)
     labeled = []  # list of (index, label) tuples
     incorrect_guesses = []  # list of (indices, guess) tuples
-    state = {"labeled": labeled, 'incorrect': incorrect_guesses}
+    state = {"labeled": labeled, "incorrect": incorrect_guesses}
     # get a random binary vector of size 5
     if use_L:
         L = deepcopy(power_01)  # possible labelings
     y = list(np.random.randint(2, size=size))
-    update_times = {'L': 0, 'state': 0} if use_L else {'state': 0}
+    update_times = {"L": 0, "state": 0} if use_L else {"state": 0}
     n_updates = 0
     # print("<<<<____________________________________>>>>")
     while True:
@@ -102,18 +105,24 @@ def get_times(seed, size, use_L, check_correctness):
         # print("Number of possible labelings: ", len(L))
         # print("Current state: ", state)
         # print("Correct labeling is: ", y)
-        avail_indices = [i for i in range(size) if i not in [ind for ind, lab in state['labeled']]]
-        new_guess = create_new_guess(avail_indices, state['incorrect'])
+        avail_indices = [
+            i for i in range(size) if i not in [ind for ind, lab in state["labeled"]]
+        ]
+        new_guess = create_new_guess(avail_indices, state["incorrect"])
         # print("New guess: ", new_guess)
         guess_indices, guess_labels = new_guess
         # now we check if the guess is correct
-        is_correct = np.all(np.array([y[i] for i in guess_indices]) == np.array(guess_labels))
+        is_correct = np.all(
+            np.array([y[i] for i in guess_indices]) == np.array(guess_labels)
+        )
         # print("Correct guess!" if is_correct else "Incorrect guess")
         # now we update the set of possible labelings
         if use_L:
             st = time.time()
             L = update_L(L, new_guess, is_correct)
-            update_times['L'] = update_times['L'] * n_updates / (n_updates + 1) + (time.time() - st) / (n_updates + 1)
+            update_times["L"] = update_times["L"] * n_updates / (n_updates + 1) + (
+                time.time() - st
+            ) / (n_updates + 1)
         # now we update our state
         st = time.time()
         try:
@@ -127,9 +136,10 @@ def get_times(seed, size, use_L, check_correctness):
             print("Expected L", L)
             breakpoint()
             state = update_state(state, (guess_indices, guess_labels), is_correct)
-            
 
-        update_times['state'] = update_times['state'] * n_updates / (n_updates + 1) + (time.time() - st) / (n_updates + 1)
+        update_times["state"] = update_times["state"] * n_updates / (n_updates + 1) + (
+            time.time() - st
+        ) / (n_updates + 1)
         if use_L:
             assert state_is_correct(state, L)
         n_updates += 1
@@ -152,11 +162,11 @@ if __name__ == "__main__":
         if use_L:
             Ltimes = {}
         statetimes = {}
-        for size in tqdm.tqdm(range(1, max_size), desc='size'):
+        for size in tqdm.tqdm(range(1, max_size), desc="size"):
             if use_L:
                 Ltimes[size] = 0
             statetimes[size] = 0
-            for seed in tqdm.tqdm(range(n_seeds), desc='seed', leave=False):
+            for seed in tqdm.tqdm(range(n_seeds), desc="seed", leave=False):
                 try:
                     # size, seed = 4, 902
                     utimes = get_times(seed, size, use_L, check_correctness)
@@ -166,21 +176,21 @@ if __name__ == "__main__":
                     raise e
 
                 if use_L:
-                    Ltimes[size] += utimes['L'] / n_seeds
-                statetimes[size] += utimes['state'] / n_seeds
-            with open(dst_filename, 'w') as f:
+                    Ltimes[size] += utimes["L"] / n_seeds
+                statetimes[size] += utimes["state"] / n_seeds
+            with open(dst_filename, "w") as f:
                 if use_L:
-                    json.dump({'L': Ltimes, 'state': statetimes}, f)
+                    json.dump({"L": Ltimes, "state": statetimes}, f)
                 else:
-                    json.dump({'state': statetimes}, f)
+                    json.dump({"state": statetimes}, f)
     else:
         print("File already exists, loading it")
 
-    with open(dst_filename, 'r') as f:
+    with open(dst_filename, "r") as f:
         data = json.load(f)
     if use_L:
-        Ltimes = data['L']
-    statetimes = data['state']
+        Ltimes = data["L"]
+    statetimes = data["state"]
 
     # plt.figure()
     # if use_L:
@@ -199,4 +209,3 @@ if __name__ == "__main__":
     # plt.xlabel('dataset size $N$')
     # plt.legend()
     # plt.savefig('log_'+dst_filename.replace('.json', '.png'))
-

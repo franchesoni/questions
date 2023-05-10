@@ -1,21 +1,23 @@
 import numpy as np
 
 
-
 def get_best_guess(guess_length, indices, predictions):
-    # computes the best guess given n. 
+    # computes the best guess given n.
     assert guess_length > 1
     assert guess_length < len(indices)
-    best_guess = [ind for ind in np.argsort(predictions)[::-1] if ind in indices][:guess_length]
+    best_guess = [ind for ind in np.argsort(predictions)[::-1] if ind in indices][
+        :guess_length
+    ]
     return best_guess
-
 
 
 # Define the transition function
 def transition(guess, indices, predictions):
     # Return a list of possible next states and their probabilities given the current state and action
-    assert set(indices).intersection(set(guess)) == set(guess), "guess should be a subset of indices"
-    pos_state = guess 
+    assert set(indices).intersection(set(guess)) == set(
+        guess
+    ), "guess should be a subset of indices"
+    pos_state = guess
     neg_state = list(set(indices) - set(guess))
     current_mass = np.sum(predictions[indices])
     pos_prob = np.prod([predictions[i] / current_mass for i in pos_state])
@@ -23,16 +25,15 @@ def transition(guess, indices, predictions):
     return [(pos_state, pos_prob), (neg_state, neg_prob)]
 
 
-
 # Define the reward function
-def approx_cost_function(indices, predictions, mode='entropy'):
-    if mode == 'entropy':
+def approx_cost_function(indices, predictions, mode="entropy"):
+    if mode == "entropy":
         probs = predictions[indices] / np.sum(predictions[indices])
         return np.sum(-probs * np.log2(probs))
-    elif mode == 'legnth':
+    elif mode == "legnth":
         return np.log2(len(indices))
     else:
-        raise ValueError('mode should be either entropy or length')
+        raise ValueError("mode should be either entropy or length")
 
 
 ############# TREE SEARCH ################
@@ -92,8 +93,10 @@ def select_node(state_node):
     leaves = get_leaves(state_node)
     non_terminal_leaves = [leaf for leaf in leaves if 1 < len(leaf.indices)]
     if len(non_terminal_leaves) == 0:
-        return 'all nodes expanded'
-    return non_terminal_leaves[np.argmax([leaf.priority for leaf in non_terminal_leaves])]
+        return "all nodes expanded"
+    return non_terminal_leaves[
+        np.argmax([leaf.priority for leaf in non_terminal_leaves])
+    ]
 
 
 def get_leaves(state_node):
@@ -109,9 +112,12 @@ def get_leaves(state_node):
 
 def update_action_cost_depth_0(action_node):
     # update the cost of an action node
-    action_node.cost = 1  # the cost of taking the action is one question + the expected next cost
+    action_node.cost = (
+        1  # the cost of taking the action is one question + the expected next cost
+    )
     for child_ind, state_child in enumerate(action_node.state_children):
         action_node.cost += state_child.cost * action_node.children_probs[child_ind]
+
 
 def add_guess(guess, state_node, predictions):
     next_states = transition(guess, state_node.indices, predictions)
@@ -123,6 +129,7 @@ def add_guess(guess, state_node, predictions):
     update_action_cost_depth_0(action_child)
     return action_child
 
+
 def expand_node(state_node, predictions):
     # expand a state node by considering actions in increasing n and their implied states
     best_cost = state_node.cost
@@ -132,7 +139,9 @@ def expand_node(state_node, predictions):
 
     if n == 1:
         support_set = set(state_node.indices)
-        sorted_predictions = [ind for ind in np.argsort(predictions)[::-1] if ind in support_set]
+        sorted_predictions = [
+            ind for ind in np.argsort(predictions)[::-1] if ind in support_set
+        ]
         # most likely point
         best_guess = [sorted_predictions[0]]
         action_child = add_guess(best_guess, state_node, predictions)
@@ -147,7 +156,9 @@ def expand_node(state_node, predictions):
         n_avail = len(sorted_predictions) - 2
         n_samples = min(10, n_avail)
         if n_avail > 0:
-            for index in np.random.choice(sorted_predictions[1:-1], n_samples, replace=False):
+            for index in np.random.choice(
+                sorted_predictions[1:-1], n_samples, replace=False
+            ):
                 best_guess = [index]
                 action_child = add_guess(best_guess, state_node, predictions)
                 if action_child.cost < best_cost:
@@ -177,7 +188,7 @@ def update_parents(state_node):
     if parent_action.cost < parent_state.cost:
         parent_state.cost = parent_action.cost
         update_parents(
-            parent_state, 
+            parent_state,
         )  # assume they're up to date unless parent_state.cost changes
 
 
@@ -187,8 +198,9 @@ def get_best_action(state_node):
         np.argmin([action_child.cost for action_child in state_node.action_children])
     ]
 
+
 def get_node_with_indices(root_node, indices):
-    """Explores the tree and returns the node with the given state using breadth first """
+    """Explores the tree and returns the node with the given state using breadth first"""
     queue = [root_node]
     while len(queue) > 0:
         node = queue.pop(0)
@@ -198,10 +210,12 @@ def get_node_with_indices(root_node, indices):
             queue.extend(action_child.state_children)
     return None
 
+
 def initialize_tree(root_state):
     root_node = StateNode(root_state)
     root_node.priority = 1  # trickle down priorities
     return root_node
+
 
 def tree_search(root_node, max_expansions, predictions):
     """Here the root_node is a set of possible labelings and predictions is the probability of each one of the possible labelings."""
@@ -210,7 +224,7 @@ def tree_search(root_node, max_expansions, predictions):
     # for i in tqdm.tqdm(range(max_expansions)):
     for i in range(max_expansions):
         node = select_node(root_node)  # node with lowest entropy
-        if node == 'all nodes expanded':
+        if node == "all nodes expanded":
             break
         expand_node(node, predictions)
         update_parents(node)

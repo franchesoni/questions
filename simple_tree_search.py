@@ -25,11 +25,15 @@ def entropy_given_state_preds_binary(state, predictions):
     # then H(Y|x wrong) = -sum_y\x p(y)/p(x w) log (p(y)/p(x w))
     # = 1/p(x w) * [H(Y) - H(Y outside x) + p(x w)log p(x w)]
     # = 1/(1-p(x)) * [H(Y) - H(Y outside x) + (1-p(x))log (1-p(x))]
-    p_x = np.prod([prob for ind, prob in zip(*predictions) if ind in state["incorrect"][0]])
+    p_x = np.prod(
+        [prob for ind, prob in zip(*predictions) if ind in state["incorrect"][0]]
+    )
     p_x_w = 1 - p_x
-    probs_Y_outside_x = np.array([pred for ind, pred in zip(*predictions) if ind not in state["incorrect"][0]])
+    probs_Y_outside_x = np.array(
+        [pred for ind, pred in zip(*predictions) if ind not in state["incorrect"][0]]
+    )
     H_Y_outside_x = entropy_given_probs_binary(probs_Y_outside_x)
-    H_Y_given_x_wrong = 1/p_x_w * (H_Y - H_Y_outside_x + p_x_w * np.log2(p_x_w))
+    H_Y_given_x_wrong = 1 / p_x_w * (H_Y - H_Y_outside_x + p_x_w * np.log2(p_x_w))
     return H_Y_given_x_wrong
 
 
@@ -168,7 +172,9 @@ class STS:
         ]
         if len(non_terminal_leaves) == 0:
             return "all nodes expanded"
-        return non_terminal_leaves[np.argmax([leaf.priority for leaf in non_terminal_leaves])]
+        return non_terminal_leaves[
+            np.argmax([leaf.priority for leaf in non_terminal_leaves])
+        ]
 
     def _update_priorities(state_node):
         smax_denom = state_node.update_softmax_denominator()
@@ -194,13 +200,13 @@ class STS:
 
     def _expand_node(node, max_n, predictions, al_method, approx_cost_function):
         # expand a state node by considering actions in increasing n and their implied states
-        assert node.state['indices'] == predictions[0]
+        assert node.state["indices"] == predictions[0]
         best_cost = node.cost
         n = len(node.action_children) + 1
         assert n <= max_n, "you want to add an action but you've already added them all"
         max_n = min(max_n, len(predictions[0]))
         if node.state["incorrect"] is not None:
-            assert len(node.state['incorrect'][0]) > 1
+            assert len(node.state["incorrect"][0]) > 1
             # we know the next guess
             # this is the only action we will consider
             inc_indices, inc_labels = node.state["incorrect"]
@@ -226,7 +232,9 @@ class STS:
                 assert len(action_child.guess[0]) > 0
         else:
             if n == 1 and al_method is None:  # get most and least certain points
-                sorted_predictions_indices = np.argsort(np.abs(np.array(predictions[1])-0.5))[::-1]
+                sorted_predictions_indices = np.argsort(
+                    np.abs(np.array(predictions[1]) - 0.5)
+                )[::-1]
                 # most likely point
                 for best_guess in [
                     ([predictions[0][sorted_predictions_indices[0]]], [0]),
@@ -257,12 +265,21 @@ class STS:
         next_states = STS._transition(guess, state_node.state, predictions)
         action_child = ActionNode(guess, state_node)
         for ns in [trans[0] for trans in next_states]:
-            assert ns['incorrect'] is None or len(ns["incorrect"][0]) > 1
+            assert ns["incorrect"] is None or len(ns["incorrect"][0]) > 1
         action_child.add_state_children(next_states)
         state_node.action_children.append(action_child)
         for state_child in action_child.state_children:
-            child_predictions = (state_child.state['indices'], [pred for ind, pred in zip(*predictions) if ind in state_child.state['indices']])
-            state_child.cost = approx_cost_function(state_child.state, child_predictions)
+            child_predictions = (
+                state_child.state["indices"],
+                [
+                    pred
+                    for ind, pred in zip(*predictions)
+                    if ind in state_child.state["indices"]
+                ],
+            )
+            state_child.cost = approx_cost_function(
+                state_child.state, child_predictions
+            )
         STS._update_action_cost_depth_0(action_child)
         return action_child
 

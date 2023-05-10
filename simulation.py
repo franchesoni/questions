@@ -119,7 +119,9 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
                     ]
                 )
                 probs_and_outcomes.append((correct_prob, answer))
-                raise NotImplementedError("all the update is wrong because of the set destroying orders")
+                raise NotImplementedError(
+                    "all the update is wrong because of the set destroying orders"
+                )
                 # if answer or len(question[0]) == 1:
                 #     labels_so_far[0].extend(question[0])
                 #     labels_so_far[1].extend(question[1] if answer else (1-np.array(question[1])).tolist())
@@ -133,7 +135,9 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
                 #         "incorrect": question,
                 #     }
                 new_predictions = predictions[new_state["indices"]]
-                sts.set_unlabeled_predictions((new_state['indices'], new_predictions.tolist()))
+                sts.set_unlabeled_predictions(
+                    (new_state["indices"], new_predictions.tolist())
+                )
                 root_node = sts.get_root_node(new_state)
             extend_results(results, "probs_and_outcomes_sts", probs_and_outcomes)
             extend_results(results, "estimated_costs_sts", estimated_costs)
@@ -195,7 +199,10 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
         data,
         dstdir / f"{dstfilename}_box_and_whisker",
     )
-    vis.scatter_probs_and_outcomes(data['probs_and_outcomes_sts'], dstdir / f"{dstfilename}_scatter_probs_and_outcomes_sts")
+    vis.scatter_probs_and_outcomes(
+        data["probs_and_outcomes_sts"],
+        dstdir / f"{dstfilename}_scatter_probs_and_outcomes_sts",
+    )
 
 
 if __name__ == "__main__":
