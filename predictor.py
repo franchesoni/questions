@@ -1,7 +1,9 @@
 from torchvision.models import resnet18, ResNet18_Weights
+import logging
 import torch
+import torch._dynamo
 
-def get_resnet(pretrained=False, n_channels=3, compile=True):
+def get_resnet(pretrained=False, n_channels=3, compile=False):
   assert n_channels in [1, 3]
   net = resnet18(weights=ResNet18_Weights if pretrained else None,
           num_classes=1)
@@ -14,6 +16,7 @@ def get_resnet(pretrained=False, n_channels=3, compile=True):
   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   net.to(device)
   if compile and torch.__version__.startswith('2'):
-    net = torch.compile(net)  # experimental
+    torch._dynamo.config.log_level = logging.INFO
+    net = torch.compile(net, mode='reduce-overhead')  # experimental, locally decreases speed
   return net
 
