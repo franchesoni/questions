@@ -19,6 +19,11 @@ class Strategy(ABC):
         """Should return index_to_label_next"""
         pass
 
+    @abstractmethod
+    def get_name(self):
+        """Should return a string with a name"""
+        pass
+
     def update(self, predictor, labeled_dataset, unlabeled_dataset):
         return self
 
@@ -32,16 +37,21 @@ class RandomSampling(Strategy):
         index_to_label_next = int(random.choice(unlabeled_dataset.indices))
         return index_to_label_next
 
+    def get_name(self):
+        return "random"
 
 class UncertaintySampling(Strategy):
     def get_index_to_label_next(self, predictor, unlabeled_dataset):
         with torch.no_grad():
-            output = predictor(unlabeled_dataset.data)[:, 0]
+            output = torch.sigmoid(predictor(unlabeled_dataset.data)[:, 0])
             certainty = torch.abs(output - 0.5)
             index_to_label_next = int(
                 unlabeled_dataset.indices[torch.argmin(certainty)]
             )
         return index_to_label_next
+
+    def get_name(self):
+        return "uncertainty"
 
 class CoreSet(Strategy):
 
@@ -75,6 +85,8 @@ class CoreSet(Strategy):
         index_to_label_next = unlabeled_dataset.indices[furthest_unlabeled_index]
         return int(index_to_label_next)
 
+    def get_name(self):
+        return "coreset"
 
 
 def get_al_curve(
@@ -104,7 +116,6 @@ def get_al_curve(
         strategy = strategy.update(predictor, labeled_ds, unlabeled_ds)
         index_to_label_next = strategy(predictor, unlabeled_ds)
         labeled_indices = labeled_indices + [index_to_label_next]
-        labeled_ds, unlabeled_ds = get_labeled_unlabeled(train_dataset, labeled_indices)
         n_queries += 1
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
