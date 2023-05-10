@@ -1,5 +1,7 @@
 import numpy as np
 import os
+import torchvision
+import torch
 
 # import pygraphviz as pgv
 import matplotlib.pyplot as plt
@@ -354,3 +356,25 @@ def load_curves():
 
 
 
+
+def visualize_question(data, guess, n_queries):
+    # data is a tensor of size (N, C, H, W)
+    # we want to show those entries of data with guess = 1 on the plot of the right, those with guess = 0 on the plot of the left
+    as_positive = data[torch.tensor(guess) == 1]
+    as_negative = data[torch.tensor(guess) == 0]
+    if len(as_positive) > 0:
+        plt.subplot(1, 2, 1)
+        # put the images in a grid
+        grid = torchvision.utils.make_grid(as_positive, nrow=8, normalize=True)
+        # show the grid on the first plot
+        plt.imshow(grid.permute(1, 2, 0).cpu())
+        plt.title("positive")
+    if len(as_negative) > 0:
+        plt.subplot(1, 2, 2)
+        grid = torchvision.utils.make_grid(as_negative, nrow=8, normalize=True)
+        plt.imshow(grid.permute(1, 2, 0).cpu())
+        plt.title("negative")
+    plt.suptitle(f"n_queries = {n_queries}")
+    plt.savefig(f"question_{n_queries}.png")
+
+    
