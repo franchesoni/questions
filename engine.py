@@ -19,20 +19,18 @@ def seed_everything(seed):
 def cpu_count():
     return len(psutil.Process().cpu_affinity())
 
-def fit_predictor(predictor, labeled_ds, n_epochs=24, lr=0.01, optim='adam', verbose=True):
-    """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    predictor = predictor.to(device)
-    labeled_ds = labeled_ds.to(device)
-    loss_fn = torch.nn.BCEWithLogitsLoss()
-
+def optimizer_setup(predictor, lr=0.01, optim='adam'):
     optimizer = torch.optim.Adam(predictor.parameters(), lr=lr) if optim == 'adam' else torch.optim.SGD(predictor.parameters(), lr=lr)
+    return optimizer
+
+def fit_predictor(predictor, loss_fn, optimizer, labeled_ds, n_epochs=24, verbose=True):
+    """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
+    # predictor.train()
 
     if verbose:
       print(f"Fitting predictor for {n_epochs} epochs")
-
     for epoch in range(n_epochs):
-        output = predictor(labeled_ds.data)[:, 0]  # select the only output and remove the channel dimension
+        output = predictor(labeled_ds.data)[:, 0]  # remove channel dimension
         loss = loss_fn(output, labeled_ds.targets)
         optimizer.zero_grad()
         loss.backward()
@@ -88,13 +86,9 @@ def fit_predictor_to_info(predictor, info, max_visited_datapoints=60000, max_epo
 
 
         
-def evaluate_predictor(predictor, test_dataset, batch_size=5000, verbose=True):
+def evaluate_predictor(predictor, loss_fn, test_dataset, batch_size=5000, verbose=True):
     """Here we evaluate the predictor on the test dataset."""
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    predictor = predictor.to(device)
-    predictor = predictor.eval()
-    test_dataset = test_dataset.to(device)
-    loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
+    # predictor = predictor.eval()
 
     loss = 0
     tp, fp, tn, fn = 0, 0, 0, 0
