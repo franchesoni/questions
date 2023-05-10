@@ -299,7 +299,10 @@ def plot_curves(curves, savename):
     # curves is a dict {'name1':{seed1:curve1}, 'name2':...}
     sns.set_theme()
     plt.figure()
-    for name in curves:
+    colors = sns.color_palette("husl", len(curves))
+    for i, name in enumerate(curves):
+        if name == 'coreset':
+            continue
         accs = []
         for seed in curves[name]:
             losses = [res["loss"] for res in curves[name][seed]]
@@ -310,20 +313,26 @@ def plot_curves(curves, savename):
             accuracies = (np.array(tps) + np.array(tns)) / (
                 np.array(tps) + np.array(fps) + np.array(fns) + np.array(tns)
             )
+            sns.lineplot(x=np.arange(len(accuracies)), y=accuracies, linestyle='dashed', color=colors[i],
+                         alpha=0.2,
+                         )
             accs.append(accuracies)
         accs = np.array(accs)
         sns.lineplot(
             x=np.tile(np.arange(accs.shape[1]), accs.shape[0]),
             y=accs.flatten(),
+            linewidth=5,
+            color=colors[i],
             label=f"{name}",
-            alpha=0.5,
+            alpha=1,
             errorbar="sd",
         )
     plt.xlabel("number of questions")
     plt.ylabel("test accuracy")
-    plt.legend()
+    plt.legend(loc='lower center')
     plt.savefig(f"{savename}.png")
     plt.close()
+
 
 
 def load_curves():
@@ -344,5 +353,4 @@ def load_curves():
     return curves
 
 
-curves = load_curves()
-plot_curves(curves, "curves")
+
