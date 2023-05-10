@@ -1,4 +1,6 @@
 # to-do
+- implement random AL strategy
+
 - implement my method
 - run my method and check number of questions
 
@@ -12,3 +14,7 @@
 - implement entropy or margin sampling
 
 - log intermediate steps
+
+
+other:
+    - check in expand node if we can go until half of the indices
