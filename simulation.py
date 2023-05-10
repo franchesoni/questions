@@ -4,98 +4,22 @@ Then we will truncate the tree and solve the problem approximately using our met
 Lastly we will add noise to the predictor.
 """
 import os
+import shutil
+from pathlib import Path
 import numpy as np
 import tqdm
 import json
-from copy import deepcopy
-import pygraphviz as pgv
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-
-###### utilities #######
-
-def entropy_given_probs(probabilities):
-    # assume independent probabilities
-    return - np.sum(probabilities * np.log2(probabilities) + (1 - probabilities) * np.log2(1 - probabilities))
-
-def get_power_01(size):
-    """Returns all possible binary vectors of size `size`."""
-    return [[int(d) for d in np.binary_repr(i, width=size)] for i in range(2**size)]
-
-#### visualization #########
-def box_and_whisker_plot(n_questions, entropies, name):
-    # create two plots, one with two columns, one with the differences
-    sns.set_theme()
-
-    fig, ax = plt.subplots()
-    plot = sns.boxplot(data=[n_questions, entropies], ax=ax)
-    sns.stripplot(data=[n_questions, entropies], ax=ax)
-    plot.set_xticklabels(['n_questions', 'entropy'])
-    fig.savefig(f'{name}.png')
-    plt.close()
-
-    differences = [nq - entropy for nq, entropy in zip(n_questions, entropies)]
-    fig, ax = plt.subplots()
-    plot = sns.boxplot(data=[differences], ax=ax)
-    sns.stripplot(data=[differences], ax=ax)
-    plot.set_xticklabels(['n_questions - entropy'])
-    plot.set_ylabel('difference')
-    fig.savefig(f'{name}_diffs.png')
-    plt.close()
-
-def violin_plot(n_questions, entropies, name):
-    differences = [nq - entropy for nq, entropy in zip(n_questions, entropies)]
-    sns.set_theme()
-    plt.figure()
-    plot = sns.violinplot(data=[n_questions, entropies], inner="quartile")
-    plot = sns.stripplot(data=[n_questions, entropies], alpha=0.3)
-    plot.set_xticklabels(['n_questions', 'entropy'])
-    # save fig using name
-    plt.savefig(f'{name}.png')
-    plt.close()
-
-
-
-
-def visualize_huffman_tree(root_node, name, node_predictions=None):
-    # pass predictions if you want extra information
-
-    # Create an empty graph object
-    graph = pgv.AGraph(directed=True, strict=True)
-
-    # Define a helper function to traverse the tree recursively
-    def traverse(node):
-        # Create a node object with the state or guess as the label
-        node_label = str(node.indices)
-        if node_predictions is not None:
-            label = node_label + "\n" + f"value = {expected_length(node)}\nentropy = {huffman_node_entropy(node_predictions, node)}\nprob = {node.prob}"
-            graph.add_node(node_label, label=label) 
-        graph.add_node(node_label) 
-        # If the node has a parent, create an edge object with or without a label
-        if node.parent:
-            parent_label = str(node.parent.indices)
-            prob = node.prob / np.sum([child.prob for child in node.parent.children])
-            edge_label = f"prob = {prob:.2f}"
-            graph.add_edge(parent_label, node_label, label=edge_label)
-        # If the node has children, traverse them recursively
-        if node.children:
-            for child in node.children:
-                traverse(child)
-
-    # Start the traversal from the root node
-    traverse(root_node)
-
-    # Write the graph to a DOT file and a PNG file
-    graph.write(f"{name}.dot")
-    graph.layout(prog=['neato','dot','twopi','circo','fdp','nop'][1])
-    graph.draw(f"{name}.png")
+import general_binary_tree_search as gbts
+import huffman
+import simple_tree_search
+import visualization as vis
 
 
 #### data ####
 def generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio):
     # get samples
-    pos_ratio = int(N*pos_ratio) / N  # make exact
+    pos_ratio = int(N * pos_ratio) / N  # make exact
     neg_samples = np.random.multivariate_normal(
         [0, 0], [[1, 0], [0, 1]], int(N * (1 - pos_ratio))
     )
@@ -112,104 +36,118 @@ def generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio):
 
     def prob_pos_fn(x):
         # the probability of belonging to the positive class is given by the probability of the positive 2d gaussian
-        return 1 / (2 * np.pi) * np.exp(-0.5 * ((x[:, 0] - pos_center[0]) ** 2 + (x[:, 1] - pos_center[1]) ** 2))
+        return (
+            1
+            / (2 * np.pi)
+            * np.exp(
+                -0.5 * ((x[:, 0] - pos_center[0]) ** 2 + (x[:, 1] - pos_center[1]) ** 2)
+            )
+        )
 
     def prob_of_being_positive(x):
         # P(y=1|x) = P(x|y=1)P(y=1) / (P(x, y=1) + P(x, y=0)) = P(x|y=1)P(y=1) / (P(x|y=1)P(y=1) + P(x|y=0)P(y=0))
         px_given_y1_times_py1 = prob_pos_fn(x) * pos_ratio
-        py1_given_x = px_given_y1_times_py1 / (px_given_y1_times_py1 + prob_neg_fn(x) * (1 - pos_ratio))
+        py1_given_x = px_given_y1_times_py1 / (
+            px_given_y1_times_py1 + prob_neg_fn(x) * (1 - pos_ratio)
+        )
         return py1_given_x
 
     return pos_samples, neg_samples, prob_of_being_positive
 
-###### Huffman encoding #######
+
+def extend_results(results, name, value):
+    if name not in results:
+        results[name] = [value]
+    else:
+        results[name].append(value)
+    return results
 
 
-class HuffmanNode:
-    def __init__(self, indices, prob, children=None):
-        self.indices = indices
-        self.prob = prob
-        self.children = children
-        self.parent = None  # because we build the tree from the bottom up
+####### main #######
 
 
-def huffman_encoding(predictions):
-    # bla bla from copilot:
-        # Huffman encoding is a way to encode a binary vector of length N
-        # such that the expected number of bits to encode it is minimized
-        # the expected number of bits is given by the entropy of the distribution
-        # the entropy of a binary distribution is given by:
-        # H(p) = -p log(p) - (1-p) log(1-p)
-        # we can use this to find the optimal encoding
-        # https://en.wikipedia.org/wiki/Huffman_coding
-        # https://www.youtube.com/watch?v=dM6us854Jk0
-        # https://www.youtube.com/watch?v=JsTptu56GM8
-        # https://www.youtube.com/watch?v=ZdooBTdW5bM
-        # https://www.youtube.com/watch?v=umTbivyJoiI
-    N = len(predictions)
-    binary_vectors = np.array(get_power_01(N))
-    # for each one of the binary vectors we compute its probability as prod p_i^x_i (1-p_i)^(1-x_i) where x_i is the i-th element of the binary vector
-    preds = predictions.reshape(1, -1)
-    log_preds_for_vectors = np.sum(np.log(preds ** binary_vectors * (1 - preds) ** (1 - binary_vectors)), axis=1)
-    preds_for_vectors = np.exp(log_preds_for_vectors)
-    assert np.allclose(preds_for_vectors.sum(), 1)
-    # build the huffman tree
-    nodes = [HuffmanNode([i], pred) for i, pred in enumerate(preds_for_vectors)]
-    nodes_without_parent = deepcopy(nodes)
-    nodes_without_parent.sort(key=lambda x: x.prob)  # increasing
-    while len(nodes_without_parent) > 1:
-        child1, child2 = nodes_without_parent[:2]
-        new_parent = HuffmanNode(
-            child1.indices + child2.indices,
-            child1.prob + child2.prob,
-            [child1, child2]
-        )
-        child1.parent = new_parent
-        child2.parent = new_parent
-        nodes.append(new_parent)
-        nodes_without_parent = [new_parent] + nodes_without_parent[2:]
-        nodes_without_parent.sort(key=lambda x: x.prob)  # increasing
-
-    root_node = nodes_without_parent[-1]
-    return root_node, preds_for_vectors
-    
-def expected_length(huffman_node):
-    if not huffman_node.children and len(huffman_node.indices) == 1:
-        return 0
-    elength = 1
-    probs = np.array([huffman_node.prob for huffman_node in huffman_node.children])
-    for child, prob in zip(huffman_node.children, probs):
-        elength += prob * expected_length(child) / np.sum(probs)
-    return elength
-
-def huffman_node_entropy(predictions, huffman_node):
-    if len(huffman_node.indices) == 1:
-        return 0
-    # the probability assigned to the predictions given a state is p(Y=y|s) = p(s|Y=y) p(Y=y) / p(s) = 1(y in s) p(Y=y) / p(s)
-    new_probabilities = np.array([predictions[index] for index in huffman_node.indices])
-    new_probabilities /= new_probabilities.sum()
-    return entropy_given_probs(new_probabilities)
-
-
-
-def main():
-    results = {'entropies': [], 'n_questions_huffman': []}
-    n_seeds, N, pos_center, pos_ratio = 1000, 10, [1,1], 0.5
-    dstfile = f"simulation_results_{n_seeds}_{N}_{pos_center}_{pos_ratio}.pkl"
-    if not os.path.exists(dstfile):
+def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
+    reset = False
+    Path(dstdir).mkdir(parents=True, exist_ok=True)
+    dstfilename = f"{n_seeds}_{N}_{pos_center}_{pos_ratio}"
+    print(f"Running {dstfilename}")
+    dstdir = Path(dstdir)
+    (dstdir / "tmp").mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(dstdir / "tmp")
+    records_filename = dstdir / f"{dstfilename}.json"
+    pos_center = [pos_center] * 2
+    # custom
+    results = {}
+    # # #
+    if not os.path.exists(records_filename) or reset:
         for seed in tqdm.tqdm(range(n_seeds)):
             np.random.seed(seed)
-            pos_samples, neg_samples, prob_of_being_positive = generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio)
-            predictions = prob_of_being_positive(np.concatenate((neg_samples, pos_samples), axis=0))
+            (
+                pos_samples,
+                neg_samples,
+                prob_of_being_positive,
+            ) = generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio)
+            predictions = prob_of_being_positive(
+                np.concatenate((neg_samples, pos_samples), axis=0)
+            )
             labels = np.array([0] * len(neg_samples) + [1] * len(pos_samples))
-            entropy = entropy_given_probs(predictions)
+            entropy = simple_tree_search.entropy_given_probs_binary(predictions)
+            extend_results(results, "entropies", entropy)
+            label_as_index = huffman.get_power_01(N).index(labels.tolist())
+
+            # simple tree search
+            sts = simple_tree_search.STS(
+                max_expansions=100, al_method=None, max_n=10, cost_fn="entropy"
+            )
+            initial_state = {"indices": list(range(N)), "incorrect": None}
+            root_node = sts.get_root_node(initial_state)
+            new_predictions = (list(range(len(predictions))), list(predictions))
+            sts.set_unlabeled_predictions(new_predictions)
+            probs_and_outcomes = []
+            estimated_costs = []
+            labels_so_far = ([], [])
+            n_questions = 0
+            while len(root_node.state["indices"]) > 0:  # still things to annotate
+                n_questions += 1
+                question, optimal_cost, correct_prob = sts.tree_search(root_node)
+                estimated_costs.append(optimal_cost)
+                assert 0 < len(question[0]), "you should ask something"
+                answer = all(
+                    [
+                        prediction == labels[index]
+                        for index, prediction in zip(*question)
+                    ]
+                )
+                probs_and_outcomes.append((correct_prob, answer))
+                raise NotImplementedError("all the update is wrong because of the set destroying orders")
+                # if answer or len(question[0]) == 1:
+                #     labels_so_far[0].extend(question[0])
+                #     labels_so_far[1].extend(question[1] if answer else (1-np.array(question[1])).tolist())
+                #     new_state = {
+                #         "indices": list(set(range(N)) - set(labels_so_far[0])),
+                #         "incorrect": None,
+                #     }
+                # else:
+                #     new_state = {
+                #         "indices": root_node.state["indices"],
+                #         "incorrect": question,
+                #     }
+                new_predictions = predictions[new_state["indices"]]
+                sts.set_unlabeled_predictions((new_state['indices'], new_predictions.tolist()))
+                root_node = sts.get_root_node(new_state)
+            extend_results(results, "probs_and_outcomes_sts", probs_and_outcomes)
+            extend_results(results, "estimated_costs_sts", estimated_costs)
+            extend_results(results, "n_questions_sts", n_questions)
 
             # huffman
-            huffman_tree, preds_for_vectors = huffman_encoding(predictions)
-            # visualize_huffman_tree(huffman_tree, 'huffman_tree', preds_for_vectors)
+            huffman_tree, preds_for_vectors = huffman.huffman_encoding(predictions)
+            analysis_result = huffman.analyse_huffman_tree(
+                huffman_tree, preds_for_vectors
+            )
+            extend_results(results, "huffman_analysis", analysis_result)
+            # vis.visualize_huffman_tree(huffman_tree, 'huffman_tree', preds_for_vectors)
 
             # run huffman questioning
-            label_as_index = get_power_01(N).index(labels.tolist())
             assert label_as_index in huffman_tree.indices
             node = huffman_tree
             n_questions = 0
@@ -220,21 +158,55 @@ def main():
                     node = node.children[0]
                 else:
                     node = node.children[1]
-            results['entropies'].append(entropy)
-            results['n_questions_huffman'].append(n_questions)
-        with open(dstfile, 'w') as f:
-            json.dump(results)
-    with open(dstfile, 'r') as f:
+            extend_results(results, "n_questions_huffman", n_questions)
+
+            # # general binary tree search
+            # max_expansions = 100
+            # n_questions = 0
+            # initial_state = list(range(2**N))  # state are indices
+            # root_node = gbts.initialize_tree(initial_state)
+            # probs_and_outcomes = []
+            # estimated_costs = []
+            # while len(root_node.indices) > 1:
+            #     n_questions += 1
+            #     question, optimal_cost, correct_prob = gbts.tree_search(
+            #         root_node, max_expansions, preds_for_vectors
+            #     )
+            #     estimated_costs.append(optimal_cost)
+            #     answer = label_as_index in question
+            #     probs_and_outcomes.append((correct_prob, answer))
+            #     new_indices = (
+            #         question if answer else list(set(root_node.indices) - set(question))
+            #     )
+            #     root_node = gbts.get_node_with_indices(root_node, new_indices)
+            #     root_node.priority = 1
+            #     root_node.parent = None
+            # extend_results(results, "probs_and_outcomes_gbts", probs_and_outcomes)
+            # extend_results(results, "estimated_costs_gbts", estimated_costs)
+            # extend_results(results, "n_questions_gbts", n_questions)
+
+        with open(records_filename, "w") as f:
+            json.dump(results, f)
+    with open(records_filename, "r") as f:
         data = json.load(f)
-        entropies = data['entropies']
-        n_questions_huffman = data['n_questions_huffman']
-    box_and_whisker_plot(n_questions_huffman, entropies, 'box_and_whisker')
-    violin_plot(n_questions_huffman, entropies, 'violin')
-
-            
-
-if __name__ == '__main__':
-    import cProfile
-    cProfile.run('main()', sort='cumtime', filename='simulation.profile')
+        analysis = data["huffman_analysis"]
+    vis.visualize_huffman_analysis(analysis, dstdir / f"{dstfilename}_huffman_analysis")
+    vis.box_and_whisker_plot(
+        data,
+        dstdir / f"{dstfilename}_box_and_whisker",
+    )
+    vis.scatter_probs_and_outcomes(data['probs_and_outcomes_sts'], dstdir / f"{dstfilename}_scatter_probs_and_outcomes_sts")
 
 
+if __name__ == "__main__":
+    n_seeds, N, pos_center, pos_ratio, dstdir = 100, 8, 1, 0.5, "simulations"
+    Path(dstdir).mkdir(parents=True, exist_ok=True)
+    dstfilename = f"{n_seeds}_{N}_{pos_center}_{pos_ratio}"
+    # import cProfile
+    # command = (
+    #     f"main({n_seeds}, {N}, {pos_center}, {pos_ratio}, '{dstdir}', '{dstfilename}')"
+    # )
+    # cProfile.run(
+    #     command, sort="cumtime", filename=f"{dstdir}/{dstfilename}_simulation.profile"
+    # )
+    main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename)
