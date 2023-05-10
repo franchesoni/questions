@@ -256,7 +256,7 @@ def get_torchvision_dataset(dataset_name, binarizer=None):
 
 
 class InMemoryDataset:
-    def __init__(self, torchvision_dataset, binarizer_fn=None, use_only_first=False):
+    def __init__(self, torchvision_dataset, binarizer_fn=None, use_only_first=False, device=None):
         if isinstance(torchvision_dataset.data, np.ndarray):
             self.data = torch.tensor(torchvision_dataset.data)
         else:
@@ -291,7 +291,7 @@ class InMemoryDataset:
             self.data = transforms.Normalize(
                 (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
             )(self.data / self.data.max())
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def __len__(self):
@@ -328,15 +328,15 @@ class InMemoryDatasetFromAttributes(InMemoryDataset):
 
 ######### API ###########
 def get_dataset(
-    dataset_name, binarizer=None, use_only_first=5000, use_only_first_test=100
+    dataset_name, binarizer=None, use_only_first=5000, use_only_first_test=100, device=None
 ):
     train_ds, test_ds = get_torchvision_dataset(dataset_name, binarizer)
     binarizer_fn = get_binarizer_fn(binarizer)
     train_ds = InMemoryDataset(
-        train_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first
+        train_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first, device=device
     )
     test_ds = InMemoryDataset(
-        test_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first_test
+        test_ds, binarizer_fn=binarizer_fn, use_only_first=use_only_first_test, device=device
     )
     return train_ds, test_ds
 
