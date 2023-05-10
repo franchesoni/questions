@@ -1,5 +1,4 @@
 import numpy as np
-import tqdm
 import gc
 
 """
@@ -9,6 +8,9 @@ part of the state are the current predictions, which are (indices, probs)
 The action has as guess a list of indices and a list of labels. This is, action.guess = (indices, labels)
 The labels should be deductible from "probs" but we save them for the case of incorrect guesses where we can deduce one more labeling for free.
 """
+TEMPERATURE = 10  # more than 1
+MAX_DEPTH = 20  # that's already a lot
+PROB_BUFFER_FACTOR = 0.01
 
 
 def entropy_given_state_preds_binary(state, predictions):
@@ -56,10 +58,11 @@ def log2_number_of_possible_labelings(state, predictions):
 
 
 class StateNode:
-    def __init__(self, state, parent=None):
+    def __init__(self, state, parent=None, depth=0):
         # Initialize the node with a state and a parent
         self.state = state
         self.parent = parent
+        self.depth = depth
         # Initialize the children and the visits as empty lists
         self.action_children = []
         self.softmax_denominator = None
@@ -68,7 +71,7 @@ class StateNode:
 
     def update_softmax_denominator(self):
         self.softmax_denominator = sum(
-            [np.exp(-child.cost) for child in self.action_children]
+            [np.exp(-child.cost / TEMPERATURE) for child in self.action_children]
         )
         return self.softmax_denominator
 
@@ -78,6 +81,7 @@ class ActionNode:
     def __init__(self, guess, parent):
         self.guess = guess
         self.parent = parent
+        self.depth = self.parent.depth
 
         self.state_children = []
         self.children_probs = []
@@ -86,7 +90,7 @@ class ActionNode:
 
     def add_state_children(self, next_states):
         for state, prob in next_states:
-            state_child = StateNode(state, self)
+            state_child = StateNode(state, self, self.depth+1)
             self.state_children.append(state_child)
             self.children_probs.append(prob)
 
@@ -104,17 +108,24 @@ class STS:
         )
 
     def set_unlabeled_predictions(self, predictions):
-        self.predictions = predictions
+        probs = np.array(predictions[1])
+        probs = (probs - PROB_BUFFER_FACTOR * (probs - 0.5)).tolist()
+        self.predictions = (predictions[0], probs)
         self.predictions_changed = True
 
     # all other methods are class methods, we prefer a functional approach and don't use state
 
-    def get_root_node(root_state):
-        root_node = StateNode(root_state)
+    def initialize_root_node(root_state):
+        root_node = StateNode(root_state, None, 0)
+        return STS.set_new_root_node(root_node)
+
+    def set_new_root_node(root_node):
         root_node.priority = 1
         if root_node.parent:
-            STS._destroy_upwards(root_node.parent)
+            STS._destroy_ancestors(root_node)
+        gc.collect()  # totally arbitrary, might be useful
         return root_node
+
 
     # define decorator that sets self.predictions_changed to False
     def require_new_predictions(func):
@@ -153,15 +164,15 @@ class STS:
             )
             STS._update_parents(node)  # here
 
-        best_action = STS._get_best_action(root_node)
-        assert len(best_action.guess[1]) > 0
-        return best_action.guess, best_action.cost, best_action.children_probs[0]
+        best_action_node = STS._get_best_action(root_node)
+        assert len(best_action_node.guess[1]) > 0
+        return best_action_node 
 
-    def _destroy_upwards(node):
+    def _destroy_ancestors(node):
         if node.parent:
-            STS._destroy_upwards(node.parent)
+            STS._destroy_ancestors(node.parent)
+            del node.parent
             node.parent = None
-        del node
         gc.collect()
 
     def _select_node(state_node):
@@ -176,11 +187,11 @@ class STS:
             np.argmax([leaf.priority for leaf in non_terminal_leaves])
         ]
 
-    def _update_priorities(state_node):
+    def _update_priorities_recursive(state_node: StateNode):
         smax_denom = state_node.update_softmax_denominator()
         for action_child in state_node.action_children:
             action_child.priority = (
-                np.exp(-action_child.cost) / smax_denom * state_node.priority
+                np.exp(-action_child.cost / TEMPERATURE) / smax_denom * state_node.priority
             )
             for child_ind, state_child in enumerate(action_child.state_children):
                 state_child.priority = (
@@ -188,24 +199,56 @@ class STS:
                 )
                 STS._update_priorities(state_child)
 
+    def _update_priorities(state_node):
+        """Use this implementation to avoid recursion depth errors. They happen when the tree is too deep (before 1000).
+        We should limit the depth at some point
+        """
+        stack = [state_node] # create a stack and push the initial node
+        while stack: # loop until the stack is empty
+            node = stack.pop() # pop the top node from the stack
+            smax_denom = node.update_softmax_denominator() # update the softmax denominator
+            for action_child in node.action_children: # loop through the action children
+                action_child.priority = (
+                    np.exp(-action_child.cost / TEMPERATURE) / smax_denom * node.priority
+                ) # update the action child priority
+                for child_ind, state_child in enumerate(action_child.state_children): # loop through the state children
+                    state_child.priority = (
+                        action_child.children_probs[child_ind] * action_child.priority
+                    ) # update the state child priority
+                    stack.append(state_child) # push the state child to the stack
+
+
     def _get_leaves(state_node):
         # get state leaves from a state node
-        leaves = []
-        for action_child in state_node.action_children:
-            for state_child in action_child.state_children:
-                leaves.extend(STS._get_leaves(state_child))
-        if len(leaves) == 0:
-            leaves.append(state_node)
-        return leaves
+        initial_depth = state_node.depth # get the initial depth
+        stack = [state_node] # create a stack and push the initial node
+        leaves = [] # create an empty list to store the leaves
+        while stack: # loop until the stack is empty
+            node = stack.pop() # pop the top node from the stack
+            if not node.action_children: # check if the node has no action children
+                leaves.append(node) # add the node to the list of leaves
+                continue # skip the rest of the loop
+            for action_child in node.action_children: # loop through the action children
+                for state_child in action_child.state_children: # loop through the state children
+                    if state_child.depth - initial_depth < MAX_DEPTH:
+                        stack.append(state_child) # push the state child to the stack
+        return leaves # return the list of leaves
+
+
 
     def _expand_node(node, max_n, predictions, al_method, approx_cost_function):
         # expand a state node by considering actions in increasing n and their implied states
         assert node.state["indices"] == predictions[0]
-        best_cost = node.cost
+        original_cost = node.cost  # this was computed at depth=0, we will update it with depth=1
+        if len(node.action_children) == 0:
+            best_cost = np.inf
+        else:
+            best_cost = node.cost
         n = len(node.action_children) + 1
         assert n <= max_n, "you want to add an action but you've already added them all"
         max_n = min(max_n, len(predictions[0]))
         if node.state["incorrect"] is not None:
+            assert len(node.action_children) == 0, "this should be the first and only action added"
             assert len(node.state["incorrect"][0]) > 1
             # we know the next guess
             # this is the only action we will consider
@@ -227,34 +270,54 @@ class STS:
             action_child = STS._add_guess(
                 best_guess, node, predictions, approx_cost_function
             )
-            if action_child.cost < best_cost:
-                best_cost = action_child.cost
-                assert len(action_child.guess[0]) > 0
+            assert len(action_child.guess[0]) > 0
+            assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
+            node.cost = action_child.cost
+            return
         else:
-            if n == 1 and al_method is None:  # get most and least certain points
-                sorted_predictions_indices = np.argsort(
-                    np.abs(np.array(predictions[1]) - 0.5)
-                )[::-1]
-                # most likely point
-                for best_guess in [
-                    ([predictions[0][sorted_predictions_indices[0]]], [0]),
-                    ([predictions[0][sorted_predictions_indices[-1]]], [0]),
-                ]:
+            if len(predictions[0]) == 1:
+                assert n == 1
+                best_guess = (predictions[0], [0])
+                action_child = STS._add_guess(
+                    best_guess, node, predictions, approx_cost_function
+                )
+                assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
+                assert action_child.cost == 1
+                node.cost = action_child.cost
+                return
+            elif n == 1:
+                assert best_cost == np.inf
+                if al_method is "uncertainty":  # get most and least certain points
+                    sorted_predictions_indices = np.argsort(
+                        np.abs(np.array(predictions[1]) - 0.5)
+                    )[::-1]
+                    # most likely point
+                    for best_guess in [
+                        ([predictions[0][sorted_predictions_indices[0]]], [0]),
+                        ([predictions[0][sorted_predictions_indices[-1]]], [0]),
+                    ]:
+                        action_child = STS._add_guess(
+                            best_guess, node, predictions, approx_cost_function
+                        )
+                        if action_child.cost < best_cost:
+                            best_cost = action_child.cost
+                elif al_method is "random":
+                    best_guess = (np.random.choice(predictions[0], 1).tolist(), [0])
                     action_child = STS._add_guess(
                         best_guess, node, predictions, approx_cost_function
                     )
-                    if action_child.cost < best_cost:
+                    if action_child.cost < best_cost:  # this should always be true
                         best_cost = action_child.cost
-                    if len(predictions) == 1:  # last prediction
-                        node.cost = best_cost
-                        assert len(action_child.guess[0]) > 0
-                        return
+                    else:
+                        raise RuntimeError("you shouln'd be here, check best cost")
                 n += 1
             while n <= max_n:
+                assert len(predictions[0]) > 1
                 best_guess = STS._get_best_guess(n, node.state, predictions)
                 action_child = STS._add_guess(
                     best_guess, node, predictions, approx_cost_function
                 )
+                assert best_cost < np.inf, "we should have found at least one action by now"
                 if action_child.cost < best_cost:
                     best_cost = action_child.cost
                 n += 1
@@ -293,32 +356,42 @@ class STS:
         neg_state = STS.update_state(state, guess, False)
         pos_prob = STS._compute_prob(state, guess, predictions)
         neg_prob = 1 - pos_prob
-        return [(pos_state, pos_prob), (neg_state, neg_prob)]
+        return [(neg_state, neg_prob), (pos_state, pos_prob)]
 
-    def update_state(state, guess, is_correct):
+    def update_state(state, guess, is_correct, ret_to_remove=False):
         """Updates the state {'indices', 'incorrect'} with guess"""
-        indices, incorrect = state["indices"], state["incorrect"]
+        unlabeled_indices, incorrect = state["indices"], state["incorrect"]
+        inverted = False
         if len(guess[0]) == 1 and not is_correct:  # a single digit is always right
-            return STS.update_state(state, (guess[0], [1 - guess[1][0]]), True)
+            question = (guess[0], [1 - guess[1][0]])
+            is_correct = True
+            inverted = True  # we have inverted the guess
         if incorrect is not None and is_correct:
             assert STS._first_is_shortened_second(
                 guess[0], incorrect[0]
             ), "incorrect should be a child of the previous incorrect"
-            # incorrect is a child of previous incorrect
-            # the wrong digit was in previous incorrect
-            inc_ind = list(set(incorrect[0]) - set(guess[0]))[0]
+            # guess should be a child of incorrect if not inverted
+            if inverted:
+                to_remove = guess[0]
+            else:  # guess wasn't inverted, then we know that the extra bit in incorrect was wrong and we annotate it correctly
+                inc_ind = list(set(incorrect[0]) - set(guess[0]))[0]
+                to_remove = guess[0] + [inc_ind]
             # now we remove all the indices of guess and the inc_ind from the state (we don't care about the label here but only on the outer loop. We care just about the next state)
-            to_remove = guess[0] + [inc_ind]
-            new_indices = [ind for ind in indices if ind not in to_remove]
+            new_indices = [ind for ind in unlabeled_indices if ind not in to_remove]
             new_incorrect = None
         elif incorrect is None and is_correct:
-            new_indices = [ind for ind in indices if ind not in guess[0]]
+            to_remove = guess[0]
+            new_indices = [ind for ind in unlabeled_indices if ind not in to_remove]
             new_incorrect = None
         elif not is_correct:
             # we remove the previous incorrect and add the guess as incorrect
-            new_indices = indices
+            to_remove = []  # this is useful when controlling from outside
+            new_indices = unlabeled_indices
             new_incorrect = guess
+        if ret_to_remove:
+            return {"indices": new_indices, "incorrect": new_incorrect}, to_remove
         return {"indices": new_indices, "incorrect": new_incorrect}
+        
 
     def _first_is_shortened_second(first, second):
         """Checks if the first guess is the second guess without an element"""
@@ -398,3 +471,6 @@ class STS:
                 [action_child.cost for action_child in state_node.action_children]
             )
         ]
+
+def test_probability_computation():
+    pass
