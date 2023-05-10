@@ -74,13 +74,15 @@ if __name__ == "__main__":
 
     # run_experiment("random", "al", 1, "geq5", False, [3, 4], use_only_first=500, use_only_first_test=1000, device='cuda:0')
     run_experiment(
-        "uncertainty",
+        "coreset",
         "al",
         1,
         "geq5",
         False,
-        [3],
+        [3, 4],
+        # use_only_first=5,
+        # use_only_first_test=10,
         use_only_first=500,
         use_only_first_test=1000,
-        device="cuda:0",
+        device="cuda:1",
     )
