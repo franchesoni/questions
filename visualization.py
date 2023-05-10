@@ -1,5 +1,6 @@
 import numpy as np
-import pygraphviz as pgv
+import os
+# import pygraphviz as pgv
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -205,8 +206,6 @@ def test_calibration():
     calibration_plot(probs, outcomes, name="test_calibration")
 
 
-
-
 def scatter_probs_and_outcomes(probs_and_outcomes, name):
     probs, outcomes = [x[0] for po in probs_and_outcomes for x in po], [x[1] for po in probs_and_outcomes for x in po]
     calibration_plot(probs, outcomes, name=name)
@@ -243,3 +242,43 @@ def visualize_cost(results, name):
     plot.set_ylabel('expected number of questions')
     fig.savefig(f'{name}_length_vs_entropy.png')
     plt.close()
+
+def plot_curves(curves, savename):
+    # curves is a dict {'name1':{seed1:curve1}, 'name2':...}
+    sns.set_theme()
+    plt.figure()
+    for name in curves:
+        accs = []
+        for seed in curves[name]:
+            losses = [res['loss'] for res in curves[name][seed]]
+            tps = [res['tp'] for res in curves[name][seed]]
+            fps = [res['fp'] for res in curves[name][seed]]
+            fns = [res['fn'] for res in curves[name][seed]]
+            tns = [res['tn'] for res in curves[name][seed]]
+            accuracies = (np.array(tps) + np.array(tns)) / (np.array(tps) + np.array(fps) + np.array(fns) + np.array(tns))
+            accs.append(accuracies)
+        accs = np.array(accs)
+        sns.lineplot(x=np.tile(np.arange(accs.shape[1]), accs.shape[0]), y=accs.flatten(), label=f"{name}", alpha=0.5, errorbar='sd')
+    plt.xlabel("number of questions")
+    plt.ylabel("test accuracy")
+    plt.legend()
+    plt.savefig(f'{savename}.png')
+    plt.close()
+
+def load_curves():
+    filenames = os.listdir()
+    curvefilenames = [file for file in filenames if file.startswith("curve") and file.endswith(".npy")]
+    curvenames = list(set([file.split("_")[1] for file in curvefilenames]))
+    curves = {}
+    for name in curvenames:
+        curves[name] = {}
+        for filename in curvefilenames:
+            if filename.startswith("curve_"+name):
+                seed = int(filename[:-4].split("_")[3])
+                with open(filename, 'rb') as file:
+                    curve = np.load(file, allow_pickle=True)
+                curves[name][seed] = curve
+    return curves
+
+curves = load_curves()
+plot_curves(curves, "curves")
