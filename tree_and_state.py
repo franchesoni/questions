@@ -212,11 +212,9 @@ def simplify_state(state, remove_parents_flag=True, filter_based_on_labels_flag=
     """Creates a simpler state without losing any information.
     We remove parents of incorrect guesses, filter incorrect guesses based on labels, simplify incorrect guesses if there are one bit differences and make incorrect guesses of length 1 new labels."""
     assert len(state['incorrect']) == 0 or len(state['incorrect'][0]) > 0, "incorrect guesses should be non-empty"
-    new_state = deepcopy(state)
-    # new_state = state
-# 
+    new_state = deepcopy(state)  # if you remove it breaks
+
     while True:
-        # remove_parents, i.e. those guesses that contain the current guess
         if remove_parents_flag:
             new_state, changed = remove_parents(new_state)
             remove_parents_flag = False
@@ -661,8 +659,8 @@ def get_node_with_state(root_node, state):
             queue.extend(action_child.state_children)
     return None
 
-def initialize_tree(root_state):
-    root_node = StateNode(root_state)
+def initialize_tree(root_indices):
+    root_node = StateNode(root_indices)
     root_node.priority = 1  # trickle down priorities
     return root_node
 
