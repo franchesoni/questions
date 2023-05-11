@@ -209,6 +209,53 @@ def calibration_plot(probabilities, outcomes, bins=4, name="calibration_plot"):
     plt.savefig(str(name) + ".png")
     plt.close()
 
+def entropies_and_gold(entropies_and_gold, savename="testSTS_entropy"):
+    # probs_and_outcomes is a dict of the form {name: [(prob, outcome), ...]}
+    sns.set_theme()
+    plt.figure()
+    maximum = 0
+    for name in entropies_and_gold:
+        entropies = [p for p, o in entropies_and_gold[name]]
+        gold = [o for p, o in entropies_and_gold[name]]
+        sns.scatterplot(y=entropies, x=gold, label=name)
+        maximum = max(maximum, max(max(entropies, gold)))
+    maximum = np.ceil(maximum)
+    plt.plot([0, maximum], [0, maximum], "--")
+    plt.xlabel("Gold entropy")
+    plt.ylabel("Computed entropy")
+    plt.legend()
+    plt.savefig(str(savename) + ".png")
+    plt.close()
+
+
+
+def calibration_plot2(probs_and_outcomes, bins=11, savename="testSTS"):
+    # probs_and_outcomes is a dict of the form {name: [(prob, outcome), ...]}
+    plt.figure()
+    plt.plot([0, 1], [0, 1], "--")
+    for name in probs_and_outcomes:
+        probs = [p for p, o in probs_and_outcomes[name]]
+        outcomes = [1*o for p, o in probs_and_outcomes[name]]
+        # compute the calibration curve
+        try:
+            fraction_of_positives, mean_predicted_value = calibration_curve(
+                outcomes, probs, n_bins=bins
+            )
+        except:
+            breakpoint()
+            fraction_of_positives, mean_predicted_value = calibration_curve(
+                outcomes, probs, n_bins=bins
+            )
+        plt.plot(mean_predicted_value, fraction_of_positives, "s-", label=name)
+    plt.xlabel("Predicted probability")
+    plt.ylabel("Fraction of positives")
+    plt.title("Calibration plot")
+    # save the plot
+    plt.savefig(str(savename) + ".png")
+    plt.close()
+
+
+
 
 def cumulative_calibration_plot(
     probabilities, outcomes, name="cumulative_calibration_plot"
