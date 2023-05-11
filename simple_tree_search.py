@@ -1,4 +1,6 @@
+import time
 import numpy as np
+import tqdm
 import gc
 
 """
@@ -12,6 +14,30 @@ TEMPERATURE = 10  # more than 1
 MAX_DEPTH = 20  # that's already a lot
 PROB_BUFFER_FACTOR = 0.01
 
+def entropy_given_whats_wrong(probabilities, indices_Y):
+    # consider the random variable X given by binary vectors of length N
+    # for this random variable, we can compute the entropy as follows:
+    # H(X) = -sum_{x in X} P(X=x)log(P(X=x))
+    # where sum_{x in X} P(x) = 1 because it's a probability distribution
+    # if now we're told that x is not in a set Y, we have to update our P(X=x)
+    # P(X=x|x not in Y) = P(x not in Y|x)P(x)/P(x not in Y)
+    # = (1 - P(x in Y|x))P(x) / (1 - P(x in Y))
+    probabilities = np.array(probabilities)
+    if len(indices_Y) > 0:
+        p_x_given_Y = []
+        for ind, p_x in enumerate(probabilities):
+            p_x_not_in_Y_given_x = 1 - 1*(ind in indices_Y)
+            p_x_in_Y = np.sum(probabilities[indices_Y])
+            p_x_given_Y.append(p_x_not_in_Y_given_x * p_x / (1 - p_x_in_Y))
+        probabilities = np.array(p_x_given_Y)
+    is_zero = probabilities == 0
+    entropies = -probabilities * np.log2(probabilities)
+    entropies[is_zero] = 0
+    return np.sum(entropies)
+
+def get_power_01(size):
+    """Returns all possible binary vectors of size `size`."""
+    return [[int(d) for d in np.binary_repr(i, width=size)] for i in range(2**size)]
 
 def entropy_given_state_preds_binary(state, predictions):
     assert predictions[0] == state["indices"]
@@ -23,20 +49,24 @@ def entropy_given_state_preds_binary(state, predictions):
         return H_Y
     # else if there is an incorrect guess we compute conditional entropy
     # H(Y|x wrong) = -sum_y p(y| x wrong) log p(y|x wrong)
-    # now note that p(y|x wrong) = p(x wrong | y) p(y) / p(x wrong) and that p(x wrong | y) = p(y)/p(x wrong) if x is not included in y
-    # then H(Y|x wrong) = -sum_y\x p(y)/p(x w) log (p(y)/p(x w))
-    # = 1/p(x w) * [H(Y) - H(Y outside x) + p(x w)log p(x w)]
-    # = 1/(1-p(x)) * [H(Y) - H(Y outside x) + (1-p(x))log (1-p(x))]
-    p_x = np.prod(
-        [prob for ind, prob in zip(*predictions) if ind in state["incorrect"][0]]
-    )
-    p_x_w = 1 - p_x
+    # now note that p(y|x wrong) = p(x wrong | y) p(y) / p(x wrong) and that p(x wrong | y) = 1 if they're inconsistent and 0 otherwise
+    # then H(Y|x wrong) = -sum_{y_inconsistent_x} p(y)/p(x w) log (p(y)/p(x w))
+    # now we need to consider that y_inconsistent_x are a lot of binary vectors, we need to use tricks
+    # first, x_w doesn't say anything about the distribution outside x_w
+    # H(Y|x w) = H(Y outside x) + H(Y at x_w|x_w)
     probs_Y_outside_x = np.array(
         [pred for ind, pred in zip(*predictions) if ind not in state["incorrect"][0]]
     )
     H_Y_outside_x = entropy_given_probs_binary(probs_Y_outside_x)
-    H_Y_given_x_wrong = 1 / p_x_w * (H_Y - H_Y_outside_x + p_x_w * np.log2(p_x_w))
-    return H_Y_given_x_wrong
+    # now we need to compute H(Y at x_w|x_w) which is the sum of many entropies (we compute the full thing now, not based on binary)
+    p_x_w = 1 - STS._prob_of_guess(state['incorrect'], predictions)  # p(x w) = 1 - p(x ok)
+    overlapping_predictions = [predictions[1][predictions[0].index(ind)] for ind in state["incorrect"][0]]
+    binary_vectors = get_power_01(len(state["incorrect"][0]))
+    bin_vec_probs = STS._prob_of_guesses(binary_vectors, overlapping_predictions) 
+    index_to_exclude = [ind for ind in range(len(binary_vectors)) if binary_vectors[ind] == state['incorrect'][1]]
+    assert len(index_to_exclude) == 1
+    H_Y_at_x_given_x_w = entropy_given_whats_wrong(bin_vec_probs, index_to_exclude)
+    return H_Y_outside_x + H_Y_at_x_given_x_w
 
 
 def entropy_given_probs_binary(probabilities):
@@ -287,7 +317,7 @@ class STS:
                 return
             elif n == 1:
                 assert best_cost == np.inf
-                if al_method is "uncertainty":  # get most and least certain points
+                if al_method == "uncertainty":  # get most and least certain points
                     sorted_predictions_indices = np.argsort(
                         np.abs(np.array(predictions[1]) - 0.5)
                     )[::-1]
@@ -397,6 +427,23 @@ class STS:
         """Checks if the first guess is the second guess without an element"""
         return len(set(second) - set(first)) == 1
 
+    def _first_is_child_of_second(first, second):
+        ind1, lab1 = first
+        ind2, lab2 = second
+        # first is a child if doesn't disagree with second
+        for firstind, firstlabel in zip(*first):
+            if (not firstind in ind2) or (lab2[ind2.index(firstind)] != firstlabel):
+                return False
+        return True
+
+    def _are_inconsistent(first, second):
+        """Two guesses are inconsistent if they disagree on the shared support"""
+        shared_indices = list(set(first[0]).intersection(set(second[0])))
+        for ind in shared_indices:
+            if first[1][first[0].index(ind)] != second[1][second[0].index(ind)]:
+                return True
+        return False
+
     def _compute_prob(state, guess, predictions):
         assert state["indices"] == predictions[0]
         pg = STS._prob_of_guess(guess, predictions)
@@ -404,13 +451,27 @@ class STS:
             # clean state, the probability is the probability of the guess
             return pg
         # else there is an incorrect state
-        # the incorrect state is a parent of the guess
-        # p(g ok |inc wrong) = (1-p(inc\g ok))p(g ok) / (1-p(g ok)p(inc\g ok))
-        # then the only thing we have to compute is the probability of the extra digit j of the previous incorrect guess
+        # p(g ok |inc wrong) = p(inc w | g ok)p(g ok) / p(inc w) = (1-p(inc ok|g ok))p(g ok) / (1-p(inc ok))
         inc = state["incorrect"]
-        extra_index = list(set(inc[0]) - set(guess[0]))[0]
-        p_j = predictions[1][predictions[0].index(extra_index)]
-        prob = (1 - p_j) * pg / (1 - pg * p_j)
+        p_inc_ok = STS._prob_of_guess(inc, predictions)
+        # guess is not a parent, then it differs with incorrect in one lacking digit (is a child) or is inconsistent
+        # p(inc ok | g ok) = 0 if they are inconsistent
+        # p(inc ok | g ok) = p(d) otherwise, which is the probability of the extra digits d of inc being correct
+        # then the only thing we have left to compute is the probability of the extra digit j of the previous incorrect guess
+        if STS._are_inconsistent(inc, guess):
+            p_inc_ok_given_g_ok = 0
+        else:  # there should be an extra digit
+            inc_ind = [ind for ind in inc[0] if ind not in guess[0]]
+            inc_lab = [lab for ind,lab in zip(*inc) if ind not in guess[0]]
+            p_d = STS._prob_of_guess((inc_ind, inc_lab), predictions)
+            p_inc_ok_given_g_ok = p_d
+        prob = (1 - p_inc_ok_given_g_ok) * pg / (1 - p_inc_ok)
+        if prob < 0:
+            assert np.allclose(prob, 0)
+            return 0
+        if prob > 1:
+            assert np.allclose(prob, 1)
+            return 1
         return prob
 
     def _prob_of_guess(guess, predictions):
@@ -420,6 +481,13 @@ class STS:
             symbol_prob = predictions[1][ind_of_predictions]
             prob *= symbol_prob**label * (1 - symbol_prob) ** (1 - label)
         return prob
+
+    def _prob_of_guesses(guesses, predictions):
+        # now guesses has shape (B, n) and predictions has shape (n) and they are aligned
+        guesses, predictions = np.array(guesses), np.array(predictions).reshape(1, -1)
+        probs = predictions ** guesses * (1 - predictions) ** (1 - guesses)  # (B, n)
+        return np.prod(probs, axis=1).tolist()  # (B)
+
 
     def _update_action_cost_depth_0(action_node):
         # update the cost of an action node
@@ -472,5 +540,121 @@ class STS:
             )
         ]
 
-def test_probability_computation():
-    pass
+
+
+
+######## TESTS ########
+def sample_incorrect(inc_guess_len, indices):
+    incorrect_indices = np.random.choice(indices, inc_guess_len, replace=False).tolist()
+    incorrect_guess = np.random.randint(2, size=inc_guess_len).tolist()
+    incorrect = (incorrect_indices, incorrect_guess)
+    return incorrect
+
+def sample_ground_truth(probabilities, incorrect):
+    if incorrect is not None:
+        incorrect_indices, incorrect_guess = incorrect
+    st = time.time()
+    while True:
+        ground_truth = (np.random.rand(len(probabilities)) < np.array(probabilities[1])).astype(int).tolist()
+        if incorrect is None:
+            break
+        if not (np.array(ground_truth)[incorrect_indices] == np.array(incorrect_guess)).all():
+            break  # the incorrect guess is not equal to the ground truth
+        if time.time() - st > 1:
+            breakpoint()
+            raise TimeoutError("Couldn't find a ground truth in 1s")
+    return ground_truth
+
+def sample_guess(indices, incorrect):
+    if incorrect is None:
+        guess_length = np.random.choice(np.arange(1, len(indices)+1))
+        guess_indices = np.random.choice(indices, guess_length, replace=False).tolist()
+        guess_labels = np.random.randint(2, size=len(indices))[guess_indices].tolist()
+        return (guess_indices, guess_labels)
+    else:
+        while True:  # can't be a parent of incorrect
+            guess_indices, guess_labels = sample_guess(indices, None)
+            for ind, inclabel in zip(*incorrect):
+                if (not ind in guess_indices) or (guess_labels[guess_indices.index(ind)] != inclabel):
+                    return (guess_indices, guess_labels)
+
+def sample_probs(indices):
+    probs = np.random.randint(1, 100, size=len(indices))/100
+    probs = probs / probs.sum()
+    return (indices, probs.tolist())
+
+
+
+
+def test_probability_computation(runs=100000):
+    """We will test compute_prob. Our state are indices [0,1,2], one random incorrect guess (of size at least 2) and some probabilities."""
+    np.random.seed(0)
+    indices = [0, 1, 2]
+    state = {'indices': indices, 'incorrect': None}
+    probs_and_answers = {'none': [], '2': [], '3': []}
+    for tryn in tqdm.tqdm(range(runs)):
+        probabilities = sample_probs(indices)
+        guess = sample_guess(indices, None)
+        ground_truth = sample_ground_truth(probabilities, None)
+        prob_pos = STS._compute_prob(state, guess, probabilities)
+        answer = [ground_truth[indices.index(ind)] for ind in guess[0]] == guess[1]
+        probs_and_answers['none'].append((prob_pos, answer))
+
+    for inc_guess_len in [2, 3]:
+        for tryn in tqdm.tqdm(range(runs)):
+            incorrect = sample_incorrect(inc_guess_len, indices)
+            state['incorrect'] = incorrect
+            probabilities = sample_probs(indices)
+            guess = sample_guess(indices, incorrect)
+            if [probabilities[1][probabilities[0].index(ind)] for ind in incorrect[0]] == incorrect[1]:
+                continue
+            ground_truth = sample_ground_truth(probabilities, incorrect) 
+            prob_pos = STS._compute_prob(state, guess, probabilities)
+            answer = [ground_truth[indices.index(ind)] for ind in guess[0]] == guess[1]
+            probs_and_answers[str(inc_guess_len)].append((prob_pos, answer))
+
+    from visualization import calibration_plot2
+    calibration_plot2(probs_and_answers, 11, 'testSTS')
+
+
+
+
+def test_entropy_computation(runs=100000):
+    """Here we test the entropy computation of a state by checking against the definition."""
+    from huffman import get_power_01
+    np.random.seed(0)
+    indices = [0, 1, 2]
+    binary_vectors = get_power_01(len(indices))
+    state = {'indices': indices, 'incorrect': None}
+    entropies_and_gold = {'none': [], '2': [], '3': []}
+    for tryn in tqdm.tqdm(range(runs)):
+        predictions = sample_probs(indices)
+        bin_vec_probs = [STS._prob_of_guess((indices, bin_vec), predictions) for bin_vec in binary_vectors]
+        gold_entropy = entropy_given_whats_wrong(bin_vec_probs, [])
+        entropy = entropy_given_state_preds_binary(state, predictions)
+        entropies_and_gold['none'].append((entropy, gold_entropy))
+
+    for inc_guess_len in [2, 3]:
+        for tryn in tqdm.tqdm(range(runs)):
+            incorrect = sample_incorrect(inc_guess_len, indices)
+            state['incorrect'] = incorrect
+            predictions = sample_probs(indices)
+            bin_vec_probs = [STS._prob_of_guess((indices, bin_vec), predictions) for bin_vec in binary_vectors]
+            # now we need to obtain the indices of those binary vectors that are tagged as incorrect by the incorrect guess
+            # these are all the parents of the incorrect guess and the incorrect guess itself
+            to_remove_indices = [ind for ind, bin_vec in enumerate(binary_vectors) if STS._first_is_child_of_second(incorrect, (indices, bin_vec))]
+            gold_entropy = entropy_given_whats_wrong(bin_vec_probs, to_remove_indices)
+            entropy = entropy_given_state_preds_binary(state, predictions)
+            entropies_and_gold[str(inc_guess_len)].append((entropy, gold_entropy))
+
+    from visualization import entropies_and_gold as plot
+    plot(entropies_and_gold, 'testSTS_entropy')
+
+
+
+def run_tests():
+    # import cProfile
+    # cProfile.run('test_probability_computation()', sort='cumtime', filename='testSTS.profile')
+    test_entropy_computation(1000)
+
+run_tests()
