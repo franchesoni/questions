@@ -39,6 +39,16 @@ class HuffmanNode:
         self.children = children
         self.parent = None  # because we build the tree from the bottom up
 
+def get_pred_for_vectors(predictions):
+    N = len(predictions)
+    binary_vectors = np.array(get_power_01(N))
+    # for each one of the binary vectors we compute its probability as prod p_i^x_i (1-p_i)^(1-x_i) where x_i is the i-th element of the binary vector
+    preds = predictions.reshape(1, -1)
+    log_preds_for_vectors = np.sum(
+        np.log(preds**binary_vectors * (1 - preds) ** (1 - binary_vectors)), axis=1
+    )
+    preds_for_vectors = np.exp(log_preds_for_vectors)
+    return preds_for_vectors
 
 def huffman_encoding(predictions):
     # bla bla from copilot:
@@ -53,14 +63,7 @@ def huffman_encoding(predictions):
     # https://www.youtube.com/watch?v=JsTptu56GM8
     # https://www.youtube.com/watch?v=ZdooBTdW5bM
     # https://www.youtube.com/watch?v=umTbivyJoiI
-    N = len(predictions)
-    binary_vectors = np.array(get_power_01(N))
-    # for each one of the binary vectors we compute its probability as prod p_i^x_i (1-p_i)^(1-x_i) where x_i is the i-th element of the binary vector
-    preds = predictions.reshape(1, -1)
-    log_preds_for_vectors = np.sum(
-        np.log(preds**binary_vectors * (1 - preds) ** (1 - binary_vectors)), axis=1
-    )
-    preds_for_vectors = np.exp(log_preds_for_vectors)
+    preds_for_vectors = get_pred_for_vectors(predictions)
     assert np.allclose(preds_for_vectors.sum(), 1)
     # build the huffman tree
     nodes = [HuffmanNode([i], pred) for i, pred in enumerate(preds_for_vectors)]
