@@ -660,5 +660,3 @@ def run_tests():
     # import cProfile
     # cProfile.run('test_probability_computation()', sort='cumtime', filename='testSTS.profile')
     test_entropy_computation(1000)
-
-run_tests()
