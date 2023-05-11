@@ -126,7 +126,7 @@ class ActionNode:
 
 
 class STS:
-    def __init__(self, max_expansions, al_method=None, max_n=10, cost_fn="entropy"):
+    def __init__(self, max_expansions, al_method="uncertainty", max_n=10, cost_fn="entropy"):
         self.max_expansions = max_expansions
         self.predictions_changed = False
         self.al_method = al_method
@@ -340,6 +340,10 @@ class STS:
                         best_cost = action_child.cost
                     else:
                         raise RuntimeError("you shouln'd be here, check best cost")
+                else:
+                    raise NotImplementedError(
+                        "you should have specified a valid active learning method"
+                    )
                 n += 1
             while n <= max_n:
                 assert len(predictions[0]) > 1
