@@ -11,7 +11,7 @@ import simple_tree_search as sts
 from simple_tree_search import StateNode, ActionNode
 from gaussians_simulation import generate_2d_gaussians_and_predictor
 import visualization as vis
-from visualization import calibration_plot_3 as calibration_plot
+from visualization import calibration_plot3 as calibration_plot
 
 
 
@@ -172,7 +172,7 @@ def example_2d_gaussians():
     # also we want its decision boundary
 
     # create the point samples
-    N = 100
+    N = 10
     pos_ratio = 0.5
     pos_center = [2, 2]
     results = {}
@@ -213,7 +213,7 @@ def example_2d_gaussians():
         best_question_node = alia.tree_search(root_node)
         question, optimal_cost, correct_prob = best_question_node.guess, best_question_node.cost, best_question_node.children_probs[1]
         # if n_question % 10 == 0:
-        #     visualize_tree(root_node, name=f"alia/tree_step_{n_question}")
+        #     visualize_tree(root_node, name=f"test_sts/tree_step_{n_question}")
         estimated_costs.append(
             (
                 optimal_cost,
@@ -243,7 +243,7 @@ def example_2d_gaussians():
             guess,
             X_annotated,
             y_annotated,
-            name=f"alia/report_step_{n_question}",
+            name=f"test_sts/report_step_{n_question}",
         )
         state = sts.STS.update_state(root_node.state, question, answer)
         root_node = sts.STS.set_new_root_node(best_question_node.state_children[answer*1])
@@ -268,15 +268,15 @@ def example_2d_gaussians():
         predictions,
         X_annotated,
         y_annotated,
-        name=f"alia/report_step_{n_question}",
+        name=f"test_sts/report_step_{n_question}",
     )
     estimated_costs = [
         {"expected length": cost, "n questions": n_question - q, "entropy": entropy}
         for cost, q, entropy in estimated_costs
     ]
     extend_results(results, "estimated_costs", estimated_costs)
-    vis.visualize_cost(estimated_costs, name="alia/estimated_costs")
-    # calibration_plot(probs_and_outcomes, name=f"alia/calibration_plot")
+    vis.visualize_cost(estimated_costs, name="test_sts/estimated_costs")
+    # calibration_plot(probs_and_outcomes, name=f"test_sts/calibration_plot")
     return True
 
 
