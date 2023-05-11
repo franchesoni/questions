@@ -3,38 +3,16 @@ import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import pygraphviz as pgv
-from sklearn.calibration import calibration_curve
+# import pygraphviz as pgv
 import cProfile
 import textwrap
 
 import simple_tree_search as sts
 from simple_tree_search import StateNode, ActionNode
-from simulation import generate_2d_gaussians_and_predictor
+from gaussians_simulation import generate_2d_gaussians_and_predictor
 import visualization as vis
+from visualization import calibration_plot_3 as calibration_plot
 
-
-def calibration_plot(probs_and_outcomes, bins=10, name="calibration_plot"):
-    # split the list into two lists: probabilities and outcomes
-    probabilities = [p[0] for p in probs_and_outcomes]
-    outcomes = [p[1] for p in probs_and_outcomes]
-
-    # compute the calibration curve
-    fraction_of_positives, mean_predicted_value = calibration_curve(
-        outcomes, probabilities, n_bins=4
-    )
-
-    # create a calibration plot with probabilities on the x-axis and fraction of positives on the y-axis
-    plt.plot(mean_predicted_value, fraction_of_positives, "s-")
-    plt.plot([0, 1], [0, 1], "--")
-
-    # add labels and title
-    plt.xlabel("Predicted probability")
-    plt.ylabel("Fraction of positives")
-    plt.title("Calibration plot")
-
-    # save the plot
-    plt.savefig(name + ".png")
 
 
 def visualize_tree(root_node, name):
@@ -205,13 +183,13 @@ def example_2d_gaussians():
     ) = generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio)
 
     inputs = np.concatenate((neg_samples, pos_samples), axis=0)
-    labels = np.array([0] * len(neg_samples) + [1] * len(pos_samples))
     predictions = prob_of_being_positive(inputs)
+    labels = np.array([0] * len(neg_samples) + [1] * len(pos_samples))
     entropy = sts.entropy_given_probs_binary(predictions)
     extend_results(results, "entropies", entropy)
-    # check that the function prob_of_being_positive works correctly
-    vis.calibration_plot(predictions, labels, name="zcalibration_plot")
-    alia = sts.STS(max_expansions=10, al_method=None, max_n=10, cost_fn="entropy")
+    # # check that the function prob_of_being_positive works correctly
+    # vis.calibration_plot(predictions, labels, name="zcalibration_plot")
+    alia = sts.STS(max_expansions=10, al_method="uncertainty", max_n=10, cost_fn="entropy")
 
     X, y = inputs, labels
     X_to_annotate = X
@@ -220,19 +198,20 @@ def example_2d_gaussians():
     X_annotated = np.empty((0, 2))
     y_annotated = np.empty((0, 1))
 
-    state = {"indices": list(range(N)), "incorrect": None}
-    root_node = sts.STS.get_root_node(state)
-    new_predictions = (list(range(len(predictions))), list(predictions))
-    alia.set_unlabeled_predictions(new_predictions)
+    new_state = {"indices": list(range(N)), "incorrect": None}
+    root_node = sts.STS.initialize_root_node(new_state)
     probs_and_outcomes = []
     estimated_costs = []
-    labels_so_far = ([], [])
     n_question = 0
-
     while len(root_node.state["indices"]) > 0:
         # print and erase n question
+        new_predictions = predictions[new_state["indices"]]
+        alia.set_unlabeled_predictions(
+            (new_state["indices"], new_predictions.tolist())
+        )
         print(f"question {n_question}", end="\r")
-        question, optimal_cost, correct_prob = alia.tree_search(root_node)
+        best_question_node = alia.tree_search(root_node)
+        question, optimal_cost, correct_prob = best_question_node.guess, best_question_node.cost, best_question_node.children_probs[1]
         # if n_question % 10 == 0:
         #     visualize_tree(root_node, name=f"alia/tree_step_{n_question}")
         estimated_costs.append(
@@ -245,7 +224,12 @@ def example_2d_gaussians():
         assert 0 < len(question[0]), "you should ask something"
 
         indices_to_ask, guess = question
-        answer = (labels[indices_to_ask] == guess).all()
+        answer = all(
+            [
+                guessed_label == labels[index]
+                for index, guessed_label in zip(*question)
+            ]
+        )
         probs_and_outcomes.append((correct_prob, answer))
         # if n_question % 10 < 3:
         plot_model_outputs(
@@ -261,10 +245,9 @@ def example_2d_gaussians():
             y_annotated,
             name=f"alia/report_step_{n_question}",
         )
-        state = sts.STS.update_state(state, question, answer)
-        new_predictions = np.array(predictions)[state["indices"]]
-        alia.set_unlabeled_predictions((state["indices"], new_predictions.tolist()))
-        root_node = sts.STS.get_root_node(state)
+        state = sts.STS.update_state(root_node.state, question, answer)
+        root_node = sts.STS.set_new_root_node(best_question_node.state_children[answer*1])
+        assert root_node.state == state
 
         n_question += 1
         annotated_indices = sorted(list(set(range(N)) - set(state["indices"])))
@@ -273,13 +256,7 @@ def example_2d_gaussians():
         y_annotated = y[annotated_indices]
         X_to_annotate = X[unlabeled_indices]
         y_to_annotate = y[unlabeled_indices]
-    estimated_costs = [
-        {"expected length": cost, "n questions": n_question - q, "entropy": entropy}
-        for cost, q, entropy in estimated_costs
-    ]
-    extend_results(results, "estimated_costs", estimated_costs)
 
-    vis.visualize_cost(estimated_costs, name="alia/estimated_costs")
     plot_model_outputs(
         prob_of_being_positive,
         pos_center,
@@ -293,8 +270,13 @@ def example_2d_gaussians():
         y_annotated,
         name=f"alia/report_step_{n_question}",
     )
-    calibration_plot(probs_and_outcomes, name=f"alia/calibration_plot")
-
+    estimated_costs = [
+        {"expected length": cost, "n questions": n_question - q, "entropy": entropy}
+        for cost, q, entropy in estimated_costs
+    ]
+    extend_results(results, "estimated_costs", estimated_costs)
+    vis.visualize_cost(estimated_costs, name="alia/estimated_costs")
+    # calibration_plot(probs_and_outcomes, name=f"alia/calibration_plot")
     return True
 
 
@@ -320,15 +302,16 @@ def test():
 
 
 def main():
-    shutil.rmtree("alia", ignore_errors=True)
-    Path("alia").mkdir(parents=True, exist_ok=True)
+    shutil.rmtree("test_sts", ignore_errors=True)
+    Path("test_sts").mkdir(parents=True, exist_ok=True)
     seed = 0
     np.random.seed(seed)
     example_2d_gaussians()
 
 
 if __name__ == "__main__":
-    cProfile.run("main()", "profile.dat")
+    # cProfile.run("main()", "profile.dat")
+    main()
 
 
 # max_expansions = 3
