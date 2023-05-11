@@ -255,6 +255,29 @@ def calibration_plot2(probs_and_outcomes, bins=11, savename="testSTS"):
     plt.close()
 
 
+def calibration_plot3(probs_and_outcomes, bins=10, name="calibration_plot"):
+    # split the list into two lists: probabilities and outcomes
+    probabilities = [p[0] for p in probs_and_outcomes]
+    outcomes = [p[1] for p in probs_and_outcomes]
+
+    # compute the calibration curve
+    fraction_of_positives, mean_predicted_value = calibration_curve(
+        outcomes, probabilities, n_bins=4
+    )
+
+    # create a calibration plot with probabilities on the x-axis and fraction of positives on the y-axis
+    plt.plot(mean_predicted_value, fraction_of_positives, "s-")
+    plt.plot([0, 1], [0, 1], "--")
+
+    # add labels and title
+    plt.xlabel("Predicted probability")
+    plt.ylabel("Fraction of positives")
+    plt.title("Calibration plot")
+
+    # save the plot
+    plt.savefig(name + ".png")
+
+
 
 
 def cumulative_calibration_plot(
