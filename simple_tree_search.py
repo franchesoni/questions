@@ -331,7 +331,7 @@ class STS:
                         )
                         if action_child.cost < best_cost:
                             best_cost = action_child.cost
-                elif al_method is "random":
+                elif al_method == "random":
                     best_guess = (np.random.choice(predictions[0], 1).tolist(), [0])
                     action_child = STS._add_guess(
                         best_guess, node, predictions, approx_cost_function
