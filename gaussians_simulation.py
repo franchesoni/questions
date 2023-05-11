@@ -191,15 +191,15 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
             extend_results(results, "entropies", entropy)
 
             results = run_STS(predictions, labels, results)
-            # results = run_huffman(predictions, labels, results)
+            results = run_huffman(predictions, labels, results)
             # results = run_gbts(predictions, labels, results)
 
         with open(records_filename, "w") as f:
             json.dump(results, f)
     with open(records_filename, "r") as f:
         data = json.load(f)
-    #     analysis = data["huffman_analysis"]
-    # vis.visualize_huffman_analysis(analysis, dstdir / f"{dstfilename}_huffman_analysis")
+        analysis = data["huffman_analysis"]
+    vis.visualize_huffman_analysis(analysis, dstdir / f"{dstfilename}_huffman_analysis")
     vis.box_and_whisker_plot(
         data,
         dstdir / f"{dstfilename}_box_and_whisker",
