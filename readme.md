@@ -29,6 +29,7 @@ Experiments are run from `main.py`. These are:
 
 
 # to-do
+- use np arrays instead of lists for predictions
 - check why points lie "above"
 - test sts
     - probs
