@@ -15,7 +15,7 @@ from simple_tree_search import STS
 ########## ENGINE ###########
 
 def get_ia_curve(
-    max_queries, predictor, strategy, train_dataset, test_dataset, initial_labeled_indices
+    max_queries, predictor, train_dataset, test_dataset, initial_labeled_indices, sts_kwargs={}
 ):
     curve = [None] * (len(initial_labeled_indices) - 1)
     n_labeled = curve.copy()
@@ -24,12 +24,11 @@ def get_ia_curve(
     shutil.rmtree('questions')
     Path('questions').mkdir(exist_ok=True, parents=True)
 
-    alia = STS(max_expansions=10, al_method=strategy.get_name(), max_n=8, cost_fn="length")   
+    alia = STS(**sts_kwargs)
     # state contains unlabeled indices and maybe an incorrect guess
     state = {"indices": [int(ind) for ind in train_dataset.indices if ind not in labeled_indices], "incorrect":None}
     root_node = STS.initialize_root_node(state)
 
-    optimizer = optimizer_setup(predictor)
     loss_fn = torch.nn.BCEWithLogitsLoss()
     eval_loss_fn = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
@@ -48,7 +47,7 @@ def get_ia_curve(
             y_hat = torch.tensor(root_node.state['incorrect'][1]).to(x.device)
             incorrect_x_y_hat = (x, y_hat)
         predictor = fit_predictor_with_incorrect(
-            predictor, loss_fn, optimizer, labeled_ds, incorrect_x_y_hat, verbose=False
+            predictor, loss_fn, labeled_ds, incorrect_x_y_hat, verbose=False
         )
         performance = evaluate_predictor(
             predictor, eval_loss_fn, test_dataset, verbose=False
