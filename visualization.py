@@ -6,8 +6,68 @@ import torch
 # import pygraphviz as pgv
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import matplotlib.colors as colors
 import huffman
+
+def plot_model_outputs(
+    model,
+    pos_center,
+    X,
+    y,
+    X_to_annotate,
+    y_to_annotate,
+    indices_to_ask,
+    predictions,
+    X_annotated,
+    y_annotated,
+    name,
+):
+    # generate the background using a grid
+    x2s = np.linspace(-4, 6, 100)
+    x1s = np.linspace(-4, 6, 100)
+    x1, x2 = np.meshgrid(x1s, x2s)
+    xs = np.stack([x1.reshape(-1), x2.reshape(-1)], axis=1)
+    # predict the probability of each point in the grid
+    ys = model(xs)
+    # plot the background
+    plt.figure()
+    plt.contourf(x1, x2, ys.reshape(x1.shape))
+    plt.colorbar()
+    norm = colors.Normalize(vmin=0, vmax=1)
+    if len(X_to_annotate) > 0:
+        # plot the data
+        plt.scatter(
+            X_to_annotate[:, 0],
+            X_to_annotate[:, 1],
+            c=y_to_annotate,
+            cmap=plt.cm.Paired,
+            edgecolors="k",
+            norm=norm,
+        )
+        # draw a circle around those indices to ask
+        plt.scatter(
+            X[indices_to_ask, 0],
+            X[indices_to_ask, 1],
+            c=np.round(np.array(predictions).squeeze()),
+            cmap=plt.cm.Paired,
+            marker="o",
+            s=200,
+            alpha=0.5,
+            norm=norm,
+        )
+    # plot the annotated data
+    plt.scatter(
+        X_annotated[:, 0],
+        X_annotated[:, 1],
+        c=y_annotated,
+        cmap=plt.cm.Set3,
+        edgecolors="k",
+        marker="s",
+        norm=norm,
+    )
+    plt.savefig(name + ".png")
+    plt.close()
+
 
 
 def plot_curves(performances, experiment_name):
@@ -184,6 +244,27 @@ def visualize_huffman_analysis(results, name):
     sns.lineplot(x=[0, limit + 1], y=[0, limit + 1], ax=ax)
     fig.savefig(f"{name}.png")
     plt.close()
+
+
+def visualize_sts_estimated_cost(results, savename):
+    costs = [res[0] for ress in results for res in ress]
+    entropy1 = [res[1] for ress in results for res in ress]
+    entropy2 = [res[2] for ress in results for res in ress]
+    n_questions = [res[3] for ress in results for res in ress]
+    results = {"cost": costs, "entropy1": entropy1, "entropy2": entropy2, "n_questions": n_questions}
+
+    sns.set_theme()
+    fig, ax = plt.subplots()
+    plt.title("STS estimated cost")
+    plot = sns.scatterplot(data=results, x="entropy1", y="cost", hue="n_questions", ax=ax)
+    plot.set_ylabel("estimated cost")
+    # plot identity line
+    limit = max(np.max(results["cost"]), np.max(results["entropy1"]))
+    sns.lineplot(x=[0, limit + 1], y=[0, limit + 1], ax=ax)
+    fig.savefig(f"{savename}_with_inc.png")
+    plt.close()
+
+
 
 
 from sklearn.calibration import calibration_curve
@@ -549,6 +630,3 @@ def visualize_question(data, guess, n_queries):
     plt.close()
 
     
-
-curves = load_curves()
-plot_curves3(curves, 'zresults_images')
