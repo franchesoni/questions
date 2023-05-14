@@ -60,14 +60,14 @@ def get_ia_curve(
         predictor.eval()
         with torch.no_grad():
             pred_probs = torch.sigmoid(predictor(unlabeled_ds.data).flatten())
-            new_predictions = (unlabeled_ds.indices.tolist(), pred_probs.cpu().numpy().tolist())
+            new_predictions = (unlabeled_ds.indices.cpu().numpy().tolist(), pred_probs.cpu().numpy().tolist())
         alia.set_unlabeled_predictions(new_predictions)
         ### query ###
         best_question_node = alia.tree_search(root_node)
         question = best_question_node.guess
         indices_to_ask, guess = question
         vis.visualize_question(train_dataset.data[indices_to_ask], guess, n_queries)
-        answer = train_dataset.targets[indices_to_ask].tolist() == guess
+        answer = train_dataset.targets[indices_to_ask].cpu().numpy().tolist() == guess
         # indices to remove from unlabeled_indices are the ones we annotate
         ### state update ###
         state, to_remove = STS.update_state(state, question, answer, ret_to_remove=True)
@@ -78,7 +78,6 @@ def get_ia_curve(
         n_queries += 1
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
-        gc.collect()
     return {'curve':curve, 'n_labeled':n_labeled}
 
 
