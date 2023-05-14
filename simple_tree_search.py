@@ -38,9 +38,9 @@ def get_power_01(size):
 
 def entropy_given_state_preds_binary(state, predictions):
     assert predictions[0] == state["indices"]
-    probabilities = np.array(
-        [pred for ind, pred in zip(*predictions) if ind in state["indices"]]
-    )
+    state_indices = np.array(state["indices"])
+    support_mask = np.isin(predictions[0], state_indices) 
+    probabilities = np.array(predictions[1])[support_mask]
     H_Y = entropy_given_probs_binary(probabilities)
     if state["incorrect"] is None:
         return H_Y
@@ -144,18 +144,7 @@ class STS:
         self.predictions = (predictions[0], probs)
         self.predictions_changed = True
 
-    # all other methods are class methods, we prefer a functional approach and don't use state
 
-    def initialize_root_node(root_state):
-        root_node = StateNode(root_state, None, 0)
-        return STS.set_new_root_node(root_node)
-
-    def set_new_root_node(root_node):
-        root_node.priority = 1
-        if root_node.parent:
-            STS._destroy_ancestors(root_node)
-        gc.collect()  # totally arbitrary, might be useful
-        return root_node
 
 
     # define decorator that sets self.predictions_changed to False
@@ -183,13 +172,10 @@ class STS:
             node = STS._select_node(root_node)  # node with lowest entropy
             if node == "all nodes expanded":
                 break
-            node_predictions = (
-                node.state["indices"],
-                [
-                    predictions[1][predictions[0].index(ind)]
-                    for ind in node.state["indices"]
-                ],
-            )
+            node_indices = np.array(node.state["indices"])
+            support_mask = np.isin(predictions[0], node_indices)
+            node_preds = np.array(predictions[1])[support_mask]
+            node_predictions = (node_indices.tolist(), node_preds.tolist())
             STS._expand_node(
                 node, max_n, node_predictions, al_method, approx_cost_function
             )
@@ -199,12 +185,25 @@ class STS:
         assert len(best_action_node.guess[1]) > 0
         return best_action_node 
 
+    # all other methods are class methods, we prefer a functional approach and don't use state
+
+
+    def initialize_root_node(root_state):
+        root_node = StateNode(root_state, None, 0)
+        return STS.set_new_root_node(root_node)
+
+    def set_new_root_node(root_node):
+        root_node.priority = 1
+        if root_node.parent:
+            STS._destroy_ancestors(root_node)
+        gc.collect()  # remove tree of ancestors
+        return root_node
+
     def _destroy_ancestors(node):
         if node.parent:
             STS._destroy_ancestors(node.parent)
             del node.parent
             node.parent = None
-        gc.collect()
 
     def _select_node(state_node):
         STS._update_priorities(state_node)
@@ -367,14 +366,10 @@ class STS:
         action_child.add_state_children(next_states)
         state_node.action_children.append(action_child)
         for state_child in action_child.state_children:
-            child_predictions = (
-                state_child.state["indices"],
-                [
-                    pred
-                    for ind, pred in zip(*predictions)
-                    if ind in state_child.state["indices"]
-                ],
-            )
+            child_indices = np.array(state_child.state["indices"])
+            support_mask = np.isin(predictions[0], child_indices)
+            child_preds = np.array(predictions[1])[support_mask]
+            child_predictions = (child_indices.tolist(), child_preds.tolist())
             state_child.cost = approx_cost_function(
                 state_child.state, child_predictions
             )
