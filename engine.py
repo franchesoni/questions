@@ -99,7 +99,6 @@ def evaluate_predictor(predictor, loss_fn, test_dataset, batch_size=5000, verbos
         tn += ((output <= 0) & (target == 0)).sum().item()
         fn += ((output <= 0) & (target == 1)).sum().item()
         loss += loss_fn(output, target).item()
-        gc.collect()
     metrics = {"loss": loss / len(test_dataset), "tp": tp, "fp": fp, "tn": tn, "fn": fn}
     if verbose:
         print(metrics)
