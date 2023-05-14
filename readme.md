@@ -10,6 +10,17 @@
 - make presentation
 - build demo
 
+    - check mnist questions
+    - run alia the gaussians
+    - run alia with a bigger network on spirals
+    - mnist geq5 histogram visualization
+- make n=1 guesses consistent with prediction
+- print prediction prob next to question
+
+- problems with graph
+    - duplicate nodes
+    - prob of outcome for n=1 should be 1
+
 
 - implement my method
 - run my method and check number of questions
