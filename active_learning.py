@@ -53,6 +53,19 @@ class UncertaintySampling(Strategy):
     def get_name(self):
         return "uncertainty"
 
+class CertaintySampling(Strategy):
+    def get_index_to_label_next(self, predictor, unlabeled_dataset):
+        with torch.no_grad():
+            output = torch.sigmoid(predictor(unlabeled_dataset.data)[:, 0])
+            certainty = torch.abs(output - 0.5)
+            index_to_label_next = int(
+                unlabeled_dataset.indices[torch.argmax(certainty)]
+            )
+        return index_to_label_next
+
+    def get_name(self):
+        return "certainty"
+
 class CoreSet(Strategy):
 
     """
@@ -96,7 +109,6 @@ def get_al_curve(
     labeled_indices = initial_labeled_indices
     unlabeled_ds = "a value to start the loop"
 
-    optimizer = optimizer_setup(predictor)
     loss_fn = torch.nn.BCEWithLogitsLoss()
     eval_loss_fn = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
@@ -107,7 +119,7 @@ def get_al_curve(
             train_dataset, labeled_indices
         )  # unlabeled_ds also stores the unlabeled indices
         predictor = fit_predictor(
-            predictor, loss_fn, optimizer, labeled_ds, verbose=False
+            predictor, loss_fn, labeled_ds, verbose=False
         )
         performance = evaluate_predictor(
             predictor, eval_loss_fn, test_dataset, verbose=False
