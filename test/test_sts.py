@@ -10,7 +10,7 @@ import textwrap
 
 import simple_tree_search as sts
 from simple_tree_search import StateNode, ActionNode
-from gaussians_simulation import generate_2d_gaussians_and_predictor
+from simulations import generate_2d_gaussians_and_predictor
 import visualization as vis
 from visualization import calibration_plot3 as calibration_plot
 

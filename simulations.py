@@ -7,18 +7,18 @@ import os
 import shutil
 from pathlib import Path
 import numpy as np
+import sklearn
+import sklearn.datasets
 import tqdm
 import json
 
-import general_binary_tree_search as gbts
 import huffman
 import simple_tree_search
-from simple_tree_search import STS
+from simple_tree_search import STS, entropy_given_probs_binary, entropy_given_state_preds_binary
 import visualization as vis
 
-
 #### data ####
-def generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio):
+def generate_2d_gaussians_and_predictor(N, pos_center=[2]*2, pos_ratio=0.5):
     # get samples
     pos_ratio = int(N * pos_ratio) / N  # make exact
     neg_samples = np.random.multivariate_normal(
@@ -55,6 +55,42 @@ def generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio):
 
     return pos_samples, neg_samples, prob_of_being_positive
 
+def generate_2d_gaussians_with_linear_and_predictor(N, pos_center=[3]*2, temperature=0.3, std=0.5):
+    # get samples
+    assert N % 2 == 0
+    cov = [[std, 0], [0, std]]
+    samples1 = np.random.multivariate_normal(
+        [0, 0], cov, N // 2
+    )
+    samples2 = np.random.multivariate_normal(
+        pos_center, cov, N // 2
+    )
+    # create a linear predictor whose decision boundary is the line y = x
+    def prob_of_being_positive(x):
+        # compute the distance to the line y = x
+        dist = (x[:, 1] - x[:, 0]) / np.sqrt(2)
+        return 1 / (1 + np.exp(-dist / temperature))
+
+    samples = np.concatenate([samples1, samples2])
+    probs = prob_of_being_positive(samples)
+    labels = np.random.rand(N) < probs
+    pos_samples = samples[labels]
+    neg_samples = samples[~labels]
+
+    return pos_samples, neg_samples, prob_of_being_positive
+
+def generate_2d_classification_and_predictor(N):
+    X, y = sklearn.datasets.make_classification(n_samples=N, n_features=2, n_classes=2, n_informative=1, n_redundant=0, n_repeated=0, n_clusters_per_class=1, flip_y=0.2)
+    pos_samples = X[y==1]
+    neg_samples = X[y==0]
+    cls = sklearn.linear_model.LogisticRegression()
+    cls.fit(X, y)
+    def prob_of_being_positive(x):
+        return cls.predict_proba(x)[:, 1]
+    return pos_samples, neg_samples, prob_of_being_positive
+
+
+
 
 def extend_results(results, name, value):
     if name not in results:
@@ -66,12 +102,13 @@ def extend_results(results, name, value):
 
 ########### functions to run methods ############
 def run_STS(predictions, labels, results, cost_fn="length"):
+    N = len(labels)
     # simple tree search
     alia = STS(
         max_expansions=10, al_method="uncertainty", max_n=10, cost_fn=cost_fn
     )
-    new_state = {"indices": list(range(N)), "incorrect": None}
-    root_node = STS.initialize_root_node(new_state)
+    state = {"indices": list(range(N)), "incorrect": None}
+    root_node = STS.initialize_root_node(state)
 
     ### query ###
     probs_and_outcomes = []
@@ -79,13 +116,23 @@ def run_STS(predictions, labels, results, cost_fn="length"):
     n_questions = 0
     while len(root_node.state["indices"]) > 0:  # still things to annotate
         n_questions += 1
-        new_predictions = predictions[new_state["indices"]]
+        new_predictions = predictions[state["indices"]]
         alia.set_unlabeled_predictions(
-            (new_state["indices"], new_predictions.tolist())
+            (state["indices"], new_predictions.tolist())
         )
         best_question_node = alia.tree_search(root_node)
         question, optimal_cost, correct_prob = best_question_node.guess, best_question_node.cost, best_question_node.children_probs[1]
-        estimated_costs.append(optimal_cost)
+        entropy1 = entropy_given_state_preds_binary(root_node.state, (state["indices"], new_predictions.tolist()))
+        entropy2 = entropy_given_probs_binary(new_predictions)
+        if optimal_cost > entropy1 + 1:
+            condition = n_questions == 1 or ((root_node.state['incorrect'] is not None) and (prev == 'above'))
+            print("above", condition)
+            prev = 'above'
+        else:
+            condition = n_questions == 1 or ((root_node.state['incorrect'] is not None) and (prev == 'above'))
+            print("below", condition)
+            prev = 'below'
+        estimated_costs.append((optimal_cost, entropy1, entropy2, n_questions))
         assert 0 < len(question[0]), "you should ask something"
         answer = all(
             [
@@ -100,6 +147,7 @@ def run_STS(predictions, labels, results, cost_fn="length"):
     extend_results(results, "probs_and_outcomes_sts", probs_and_outcomes)
     extend_results(results, "estimated_costs_sts", estimated_costs)
     extend_results(results, "n_questions_sts", n_questions)
+    print('-'*20)
     return results
 
 
@@ -128,61 +176,31 @@ def run_huffman(predictions, labels, results):
     return results
 
 
-def run_gbts(predictions, labels, results):
-    preds_for_vectors = huffman.get_pred_for_vectors(predictions)
-    label_as_index = huffman.get_power_01(N).index(labels.tolist())
-    # general binary tree search
-    max_expansions = 100
-    n_questions = 0
-    initial_state = list(range(2**N))  # state are indices
-    root_node = gbts.initialize_tree(initial_state)
-    probs_and_outcomes = []
-    estimated_costs = []
-    while len(root_node.indices) > 1:
-        n_questions += 1
-        question, optimal_cost, correct_prob = gbts.tree_search(
-            root_node, max_expansions, preds_for_vectors
-        )
-        estimated_costs.append(optimal_cost)
-        answer = label_as_index in question
-        probs_and_outcomes.append((correct_prob, answer))
-        new_indices = (
-            question if answer else list(set(root_node.indices) - set(question))
-        )
-        root_node = gbts.get_node_with_indices(root_node, new_indices)
-        root_node.priority = 1
-        root_node.parent = None
-    extend_results(results, "probs_and_outcomes_gbts", probs_and_outcomes)
-    extend_results(results, "estimated_costs_gbts", estimated_costs)
-    extend_results(results, "n_questions_gbts", n_questions)
-    return results
-
 
 
 ####### main #######
 
 
-def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
-    reset = False
+def main(n_seeds, N, generator_fn, dstdir):
+    reset = True
     Path(dstdir).mkdir(parents=True, exist_ok=True)
-    dstfilename = f"{n_seeds}_{N}_{pos_center}_{pos_ratio}"
+    dstfilename = f"{n_seeds}_{N}_{generator_fn.__name__}"
     print(f"Running {dstfilename}")
     dstdir = Path(dstdir)
     (dstdir / "tmp").mkdir(parents=True, exist_ok=True)
     shutil.rmtree(dstdir / "tmp")
     records_filename = dstdir / f"{dstfilename}.json"
-    pos_center = [pos_center] * 2
     # custom
     results = {}
-    # # #
     if not os.path.exists(records_filename) or reset:
-        for seed in tqdm.tqdm(range(n_seeds)):
+        # for seed in tqdm.tqdm(range(n_seeds)):
+        for seed in range(n_seeds):
             np.random.seed(seed)
             (
                 pos_samples,
                 neg_samples,
                 prob_of_being_positive,
-            ) = generate_2d_gaussians_and_predictor(N, pos_center, pos_ratio)
+            ) = generator_fn(N)
             predictions = prob_of_being_positive(
                 np.concatenate((neg_samples, pos_samples), axis=0)
             )
@@ -192,7 +210,6 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
 
             results = run_STS(predictions, labels, results)
             results = run_huffman(predictions, labels, results)
-            # results = run_gbts(predictions, labels, results)
 
         with open(records_filename, "w") as f:
             json.dump(results, f)
@@ -208,12 +225,13 @@ def main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename):
         data["probs_and_outcomes_sts"],
         dstdir / f"{dstfilename}_scatter_probs_and_outcomes_sts",
     )
+    vis.visualize_sts_estimated_cost(data['estimated_costs_sts'], dstdir / f"{dstfilename}_sts_estimated_cost")
 
 
 if __name__ == "__main__":
-    n_seeds, N, pos_center, pos_ratio, dstdir = 100, 8, 1, 0.5, "simulations"
+    n_seeds, N, dstdir = 100, 10, "results/simulations"
     Path(dstdir).mkdir(parents=True, exist_ok=True)
-    dstfilename = f"{n_seeds}_{N}_{pos_center}_{pos_ratio}"
+    dstfilename = f"{n_seeds}_{N}"
     # import cProfile
     # command = (
     #     f"main({n_seeds}, {N}, {pos_center}, {pos_ratio}, '{dstdir}', '{dstfilename}')"
@@ -221,4 +239,6 @@ if __name__ == "__main__":
     # cProfile.run(
     #     command, sort="cumtime", filename=f"{dstdir}/{dstfilename}_simulation.profile"
     # )
-    main(n_seeds, N, pos_center, pos_ratio, dstdir, dstfilename)
+    for generator_fn in [generate_2d_gaussians_and_predictor]:#, generate_2d_gaussians_with_linear_and_predictor, generate_2d_classification_and_predictor]:
+        main(n_seeds, N, generator_fn, dstdir)
+
