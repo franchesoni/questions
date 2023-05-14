@@ -30,7 +30,7 @@ def optimizer_setup(predictor, lr=0.01, optim="adam"):
 
 def fit_predictor(predictor, loss_fn, optimizer, labeled_ds, n_epochs=24, verbose=True):
     """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
-    # predictor.train()
+    predictor.train()
 
     if verbose:
         print(f"Fitting predictor for {n_epochs} epochs")
@@ -48,7 +48,7 @@ def fit_predictor(predictor, loss_fn, optimizer, labeled_ds, n_epochs=24, verbos
 
 def fit_predictor_with_incorrect(predictor, loss_fn, optimizer, labeled_ds, incorrect_x_y_hat, n_epochs=24, verbose=True):
     """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
-    # predictor.train()
+    predictor.train()
 
     if verbose:
         print(f"Fitting predictor for {n_epochs} epochs")
@@ -77,7 +77,7 @@ def fit_predictor_with_incorrect(predictor, loss_fn, optimizer, labeled_ds, inco
 
 def evaluate_predictor(predictor, loss_fn, test_dataset, batch_size=5000, verbose=True):
     """Here we evaluate the predictor on the test dataset."""
-    # predictor = predictor.eval()
+    predictor = predictor.eval()
 
     loss = 0
     tp, fp, tn, fn = 0, 0, 0, 0
