@@ -37,6 +37,7 @@ def run_ia_experiment(
         "max_n": 8,
         "al_method": experiment_name,
         "cost_fn": "entropy",
+        "reduce_certainty_factor":0.1,
     }
 
     for seed in seeds:

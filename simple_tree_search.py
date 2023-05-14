@@ -10,9 +10,6 @@ part of the state are the current predictions, which are (indices, probs)
 The action has as guess a list of indices and a list of labels. This is, action.guess = (indices, labels)
 The labels should be deductible from "probs" but we save them for the case of incorrect guesses where we can deduce one more labeling for free.
 """
-TEMPERATURE = 10  # more than 1
-MAX_DEPTH = 20  # that's already a lot
-PROB_BUFFER_FACTOR = 0.01
 
 def entropy_given_whats_wrong(probabilities, indices_Y):
     # consider the random variable X given by binary vectors of length N
@@ -101,7 +98,7 @@ class StateNode:
 
     def update_softmax_denominator(self):
         self.softmax_denominator = sum(
-            [np.exp(-child.cost / TEMPERATURE) for child in self.action_children]
+            [np.exp(-child.cost / STS.TEMPERATURE) for child in self.action_children]
         )
         return self.softmax_denominator
 
@@ -126,11 +123,15 @@ class ActionNode:
 
 
 class STS:
-    def __init__(self, max_expansions, al_method="uncertainty", max_n=10, cost_fn="entropy"):
+    TEMPERATURE = 10  # more than 1
+    MAX_DEPTH = 20
+
+    def __init__(self, max_expansions, al_method="uncertainty", max_n=10, cost_fn="entropy", reduce_certainty_factor=0.1):
         self.max_expansions = max_expansions
         self.predictions_changed = False
         self.al_method = al_method
         self.max_n = max_n
+        self.reduce_certainty_factor = reduce_certainty_factor
         self.approx_cost_function = (
             entropy_given_state_preds_binary
             if cost_fn == "entropy"
@@ -139,7 +140,7 @@ class STS:
 
     def set_unlabeled_predictions(self, predictions):
         probs = np.array(predictions[1])
-        probs = (probs - PROB_BUFFER_FACTOR * (probs - 0.5)).tolist()
+        probs = (probs - self.reduce_certainty_factor * (probs - 0.5)).tolist()
         self.predictions = (predictions[0], probs)
         self.predictions_changed = True
 
@@ -221,7 +222,7 @@ class STS:
         smax_denom = state_node.update_softmax_denominator()
         for action_child in state_node.action_children:
             action_child.priority = (
-                np.exp(-action_child.cost / TEMPERATURE) / smax_denom * state_node.priority
+                np.exp(-action_child.cost / STS.TEMPERATURE) / smax_denom * state_node.priority
             )
             for child_ind, state_child in enumerate(action_child.state_children):
                 state_child.priority = (
@@ -239,7 +240,7 @@ class STS:
             smax_denom = node.update_softmax_denominator() # update the softmax denominator
             for action_child in node.action_children: # loop through the action children
                 action_child.priority = (
-                    np.exp(-action_child.cost / TEMPERATURE) / smax_denom * node.priority
+                    np.exp(-action_child.cost / STS.TEMPERATURE) / smax_denom * node.priority
                 ) # update the action child priority
                 for child_ind, state_child in enumerate(action_child.state_children): # loop through the state children
                     state_child.priority = (
@@ -260,7 +261,7 @@ class STS:
                 continue # skip the rest of the loop
             for action_child in node.action_children: # loop through the action children
                 for state_child in action_child.state_children: # loop through the state children
-                    if state_child.depth - initial_depth < MAX_DEPTH:
+                    if state_child.depth - initial_depth < STS.MAX_DEPTH:
                         stack.append(state_child) # push the state child to the stack
         return leaves # return the list of leaves
 
