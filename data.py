@@ -4,7 +4,7 @@ import torch
 import gc
 import psutil
 
-DATASET_NAMES = ["cifar10", "mnist", "fmnist", "svhn", "stl10"]
+DATASET_NAMES = ["cifar10", "mnist", "fmnist", "svhn"]#, "stl10"]
 
 
 def print_memory():
