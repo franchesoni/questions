@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import shutil
+from pathlib import Path
 import gc
 
 import tqdm
@@ -16,10 +18,13 @@ def get_ia_curve(
     max_queries, predictor, strategy, train_dataset, test_dataset, initial_labeled_indices
 ):
     curve = [None] * (len(initial_labeled_indices) - 1)
+    n_labeled = curve.copy()
     labeled_indices = initial_labeled_indices
     unlabeled_ds = "a value to start the loop"
+    shutil.rmtree('questions')
+    Path('questions').mkdir(exist_ok=True, parents=True)
 
-    alia = STS(max_expansions=10, al_method=strategy.get_name(), max_n=10, cost_fn="length")
+    alia = STS(max_expansions=10, al_method=strategy.get_name(), max_n=8, cost_fn="length")   
     # state contains unlabeled indices and maybe an incorrect guess
     state = {"indices": [int(ind) for ind in train_dataset.indices if ind not in labeled_indices], "incorrect":None}
     root_node = STS.initialize_root_node(state)
@@ -49,6 +54,8 @@ def get_ia_curve(
             predictor, eval_loss_fn, test_dataset, verbose=False
         )
         curve = curve + [performance]  # add performance to curve
+        n_labeled = n_labeled + [len(labeled_indices)]
+
 
         ### initialization of predictions ###
         predictor.eval()
@@ -73,6 +80,6 @@ def get_ia_curve(
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
         gc.collect()
-    return curve
+    return {'curve':curve, 'n_labeled':n_labeled}
 
 
