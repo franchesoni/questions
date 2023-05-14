@@ -1,4 +1,35 @@
+# This is the repository for the paper **Optimal and Efficient Binary Questioning for Human-in-the-Loop Annotation**
+
+## Experiments
+Experiments are run from `main.py`. These are:
+1. Run Huffman and STS for N=10
+   - in these problems:
+        - balanced
+            - blobs
+            - blobs + linear
+            - make classification
+            - spiral
+        - unbalanced
+            - make classification
+    - report (for many seeds)
+      - entropy (general, huffman)
+      - expected number of questions (huffman)
+      - cost function (sts)
+      - number of questions
+      - number of questions - entropy
+2. Run STS over real datasets using an oracle
+    - train an oracle
+    - geq5, last
+    - report
+        - number of labels vs number of questions
+        - prob correct vs outcomes
+        - cost vs entropy
+        - try buffering
+3. Run STS over real datasets from scratch
+
+
 # to-do
+- check why points lie "above"
 - test sts
     - probs
     - entropy
