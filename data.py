@@ -371,6 +371,11 @@ def get_labeled_unlabeled(train_dataset: InMemoryDataset, labeled_indices: list[
 
 
 ###### testing #######3
+def download_datasets():
+    for ds_name in DATASET_NAMES:
+        train_ds, test_ds = get_dataset(ds_name, 'geq5')
+    print('all downloaded')
+ 
 def prepare_datasets(binarizer="geq5"):
     print_memory()
     for ds_name in DATASET_NAMES:
