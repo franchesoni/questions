@@ -65,17 +65,17 @@ def run_experiment(
         np.save(dstfilename, curve)
 
 def run_all_experiments(dev=False, profiler=None):
-    for binarizer in ["geq5", "last", "odd"]:
+    for binarizer in ["geq5"]:#, "last", "odd"]:
         for pretrained in [False]:#, True]:  # not working because it needs 1000 classes
             for dataset_index in [1, 0, 2, 3, 4]:
-                for exp_name in ["random", "uncertainty"]:#, "coreset"]:  # coreset is broken
+                for exp_name in ["random", "uncertainty", "certainty"]:#, "coreset"]:  # coreset is broken
                     for exp_type in ['al']:#['ia', 'al']:  # does ia work?
                         if exp_type == 'ia' and exp_name == 'coreset':
                             continue  # not implemented
-                        # seeds = [0, 1, 2]
-                        # device='cuda:0'
-                        seeds = [3, 4, 5]
-                        device='cuda:1'
+                        seeds = [0, 1, 2]
+                        device='cuda:0'
+                        # seeds = [3, 4, 5]
+                        # device='cuda:1'
                         max_queries = 500
                         use_only_first = 5000
                         use_only_first_test = 1000
