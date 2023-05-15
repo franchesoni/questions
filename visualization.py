@@ -1,3 +1,4 @@
+import tqdm
 import numpy as np
 import os
 import torchvision
@@ -486,9 +487,9 @@ def plot_curves2(curves, savename):
     plt.savefig(f"{savename}.png")
     plt.close()
 
-def plot_curves3(curves, savename):
+def plot_curves3(curves, savename, max_queries=1000):
     # curves is a list [{'curve':curve, 'seed':seed, ...}]
-    curves = [curve for curve in curves if curve['binarizer'] =='geq5' and curve['max_queries']==500]
+    curves = [curve for curve in curves if curve['binarizer'] =='geq5' and curve['max_queries']==max_queries]
     datasets = set([curve['dataset'] for curve in curves])
 
     sns.set_theme()
@@ -553,17 +554,17 @@ def load_curves():
     # f"results/curve_{now}_seed_{seed}_exp_type_{exp_type}_exp_name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max_queries_{max_queries}_use_only_first_{use_only_first}_use_only_first_test_{use_only_first_test}.npy"
     # this function extracts the curves and returns them in a list of dicts
     # each dict on the list has {'curve':..., 'seed': ..., ...}
-    filenames = os.listdir('results')
+    filenames = os.listdir('results/curves')
     curvefilenames = [
         file for file in filenames if file.startswith("curve") and file.endswith(".npy")
     ]
     curves = []
-    for curvefname in curvefilenames:
+    for curvefname in tqdm.tqdm(curvefilenames):
         new_curve = {}
         # only those in new version
         if not '-' in curvefname.split('_')[1]:
             continue
-        curve = np.load('results/'+curvefname, allow_pickle=True)
+        curve = np.load('results/curves/'+curvefname, allow_pickle=True)
         if len(curve.shape) == 0:
             curve = curve.tolist()
             curve, n_labels = curve['curve'], curve['n_labeled']
@@ -630,3 +631,6 @@ def visualize_question(data, guess, n_queries):
     plt.close()
 
     
+curves = load_curves()
+plot_curves3(curves, savename='results/curves/plot')
+
