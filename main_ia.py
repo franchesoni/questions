@@ -43,6 +43,8 @@ def run_ia_experiment(
         predictor = get_resnet(
             pretrained=pretrained, n_channels=n_channels, compile=False, device=device
         )
+        now = str(datetime.datetime.utcnow()).replace(' ', '-').replace(':', '-').replace('.', '-')
+        dstfilename = f"results/curves/curve_{now}_seed_{seed}_exp_type_{exp_type}_exp_name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max_queries_{max_queries}_use_only_first_{use_only_first}_use_only_first_test_{use_only_first_test}.npy"
         curve = get_ia_curve(
             max_queries,
             predictor,
@@ -50,10 +52,9 @@ def run_ia_experiment(
             test_ds,
             initial_labeled_indices=initial_labeled_indices,
             sts_kwargs=sts_kwargs,
+            dstfilename=dstfilename,
             )
-        now = str(datetime.datetime.utcnow()).replace(' ', '-').replace(':', '-').replace('.', '-')
-        dstfilename = f"results/curves/curve_{now}_seed_{seed}_exp_type_{exp_type}_exp_name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max_queries_{max_queries}_use_only_first_{use_only_first}_use_only_first_test_{use_only_first_test}.npy"
-        np.save(dstfilename, curve)
+
 
 def run_all_experiments(run=0, dev=False, profiler=None):
     for binarizer in ["geq5"]:
@@ -71,7 +72,7 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                                     "reduce_certainty_factor":reduce_uncertainty_factor,
                                 }
                                 exp_type = 'ia'
-                                max_queries = 6000
+                                max_queries = 1000
                                 use_only_first = 6000
                                 use_only_first_test = 1000
                                 if run == 0:
@@ -111,8 +112,9 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                                     profiler.enable()
 
 
+
 if __name__ == "__main__":
-    run_all_experiments(run=0, dev=False, profiler=None)
+    run_all_experiments(run=1, dev=False, profiler=None)
     # import cProfile
     # pr = cProfile.Profile()
     # pr.enable()
