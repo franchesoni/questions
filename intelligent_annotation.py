@@ -15,7 +15,7 @@ from simple_tree_search import STS
 ########## ENGINE ###########
 
 def get_ia_curve(
-    max_queries, predictor, train_dataset, test_dataset, initial_labeled_indices, sts_kwargs={}
+    max_queries, predictor, train_dataset, test_dataset, initial_labeled_indices, sts_kwargs={}, dstfilename=None
 ):
     curve = [None] * (len(initial_labeled_indices) - 1)
     n_labeled = curve.copy()
@@ -26,7 +26,10 @@ def get_ia_curve(
 
     alia = STS(**sts_kwargs)
     # state contains unlabeled indices and maybe an incorrect guess
-    state = {"indices": [int(ind) for ind in train_dataset.indices if ind not in labeled_indices], "incorrect":None}
+    train_dataset_indices_list = train_dataset.indices.tolist()
+    assert sorted(train_dataset_indices_list) == train_dataset_indices_list
+    indices = sorted(list(set(train_dataset_indices_list) - set(initial_labeled_indices)))
+    state = {"indices": indices, "incorrect":None}
     root_node = STS.initialize_root_node(state)
 
     loss_fn = torch.nn.BCEWithLogitsLoss()
@@ -78,6 +81,8 @@ def get_ia_curve(
         n_queries += 1
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
+        if dstfilename is not None:
+            np.save(dstfilename, curve)
     return {'curve':curve, 'n_labeled':n_labeled}
 
 
