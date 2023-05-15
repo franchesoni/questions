@@ -126,7 +126,7 @@ class STS:
     TEMPERATURE = 10  # more than 1
     MAX_DEPTH = 20
 
-    def __init__(self, max_expansions, al_method="uncertainty", max_n=10, cost_fn="entropy", reduce_certainty_factor=0.1):
+    def __init__(self, max_expansions, al_method="uncertainty", max_n=10, cost_fn="entropy", reduce_certainty_factor=0.1, reset_tree=True):
         self.max_expansions = max_expansions
         self.predictions_changed = False
         self.al_method = al_method
@@ -137,6 +137,7 @@ class STS:
             if cost_fn == "entropy"
             else log2_number_of_possible_labelings
         )
+        self.reset_tree = reset_tree
 
     def set_unlabeled_predictions(self, predictions):
         probs = np.array(predictions[1])
@@ -165,6 +166,8 @@ class STS:
         al_method = self.al_method
         max_n = self.max_n
         approx_cost_function = self.approx_cost_function
+        if self.reset_tree:
+            assert root_node.action_children == [], "the initial node should be clean"
 
         # print("Expanding tree...")
         # for i in tqdm.tqdm(range(self.max_expansions)):
@@ -192,10 +195,12 @@ class STS:
         root_node = StateNode(root_state, None, 0)
         return STS.set_new_root_node(root_node)
 
-    def set_new_root_node(root_node):
+    def set_new_root_node(root_node, destroy_ancestors=True, destroy_descendants=True):
         root_node.priority = 1
-        if root_node.parent:
+        if destroy_ancestors and root_node.parent:
             STS._destroy_ancestors(root_node)
+        if destroy_descendants:
+            STS._destroy_descendants(root_node)
         gc.collect()  # remove tree of ancestors
         return root_node
 
@@ -204,6 +209,13 @@ class STS:
             STS._destroy_ancestors(node.parent)
             del node.parent
             node.parent = None
+
+    def _destroy_descendants(node):
+        if hasattr(node, "action_children"):
+            for action_child in node.action_children:
+                STS._destroy_descendants(action_child)
+                del action_child
+            node.action_children = []
 
     def _select_node(state_node):
         STS._update_priorities(state_node)
