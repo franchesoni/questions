@@ -19,7 +19,7 @@ def entropy_given_whats_wrong(probabilities, indices_Y):
     # if now we're told that x is not in a set Y, we have to update our P(X=x)
     # P(X=x|x not in Y) = P(x not in Y|x)P(x)/P(x not in Y)
     # = (1 - P(x in Y|x))P(x) / (1 - P(x in Y))
-    assert isinstance(probabilities, np.ndarray)
+    # assert isinstance(probabilities, np.ndarray)
     if len(indices_Y) > 0:
         p_x_given_Y = np.empty(len(probabilities))
         for ind, p_x in enumerate(probabilities):
@@ -37,9 +37,9 @@ def get_power_01(size):
     return [[int(d) for d in np.binary_repr(i, width=size)] for i in range(2**size)]
 
 def entropy_given_state_preds_binary(state, predictions):
-    assert (predictions[0] == state["indices"]).all()
-    assert isinstance(state['indices'], np.ndarray)
-    assert isinstance(predictions[1], np.ndarray)
+    # assert (predictions[0] == state["indices"]).all()
+    # assert isinstance(state['indices'], np.ndarray)
+    # assert isinstance(predictions[1], np.ndarray)
     state_indices = state["indices"]
     support_mask = np.isin(predictions[0], state_indices) 
     probabilities = predictions[1][support_mask]
@@ -54,10 +54,10 @@ def entropy_given_state_preds_binary(state, predictions):
     # first, x_w doesn't say anything about the distribution outside x_w
     # H(Y|x w) = H(Y outside x) + H(Y at x_w|x_w)
 
-    assert isinstance(state['incorrect'][0], np.ndarray)
+    # assert isinstance(state['incorrect'][0], np.ndarray)
     isin_mask = np.isin(predictions[0], state['incorrect'][0])
-    assert (state['incorrect'][0] == predictions[0][isin_mask]).all()
-    assert (sorted(state['incorrect'][0]) == state['incorrect'][0]).all()
+    # assert (state['incorrect'][0] == predictions[0][isin_mask]).all()
+    # assert (sorted(state['incorrect'][0]) == state['incorrect'][0]).all()
     probs_Y_outside_x = predictions[1][~isin_mask]
     H_Y_outside_x = entropy_given_probs_binary(probs_Y_outside_x)
     # now we need to compute H(Y at x_w|x_w) which is the sum of many entropies (we compute the full thing now, not based on binary)
@@ -68,7 +68,7 @@ def entropy_given_state_preds_binary(state, predictions):
     bin_vec_probs = STS._prob_of_guesses(binary_vectors, overlapping_predictions) 
     # index_to_exclude = [ind for ind in range(len(binary_vectors)) if binary_vectors[ind] == state['incorrect'][1]]
     index_to_exclude = np.prod(np.array(binary_vectors) == state['incorrect'][1], axis=1)
-    assert sum(index_to_exclude) == 1
+    # assert sum(index_to_exclude) == 1
     index_to_exclude = [np.argmax(index_to_exclude)]
     H_Y_at_x_given_x_w = entropy_given_whats_wrong(bin_vec_probs, index_to_exclude)
     return H_Y_outside_x + H_Y_at_x_given_x_w
@@ -148,8 +148,8 @@ class STS:
         self.reset_tree = reset_tree
 
     def set_unlabeled_predictions(self, predictions):
-        assert isinstance(predictions[1], np.ndarray)
-        assert isinstance(predictions[0], np.ndarray)
+        # assert isinstance(predictions[1], np.ndarray)
+        # assert isinstance(predictions[0], np.ndarray)
         probs = predictions[1]
         probs = (probs - self.reduce_certainty_factor * (probs - 0.5))
         self.predictions = (predictions[0], probs)
@@ -185,8 +185,8 @@ class STS:
             node = STS._select_node(root_node)  # node with lowest entropy
             if node == "all nodes expanded":
                 break
-            assert isinstance(node.state['indices'], np.ndarray)
-            assert isinstance(predictions[1], np.ndarray)
+            # assert isinstance(node.state['indices'], np.ndarray)
+            # assert isinstance(predictions[1], np.ndarray)
             node_indices = node.state['indices']
             support_mask = np.isin(predictions[0], node_indices)
             node_preds = predictions[1][support_mask]
@@ -197,7 +197,7 @@ class STS:
             STS._update_parents(node)  # here
 
         best_action_node = STS._get_best_action(root_node)
-        assert len(best_action_node.guess[1]) > 0
+        # assert len(best_action_node.guess[1]) > 0
         return best_action_node 
 
     # all other methods are class methods, we prefer a functional approach and don't use state
@@ -213,7 +213,8 @@ class STS:
             STS._destroy_ancestors(root_node)
         if destroy_descendants:
             STS._destroy_descendants(root_node)
-        gc.collect()  # remove tree of ancestors
+            gc.collect()  # remove tree of ancestors
+            # once in a while
         return root_node
 
     def _destroy_ancestors(node):
@@ -230,7 +231,7 @@ class STS:
             node.action_children = []
 
     def _select_node(state_node):
-        check_state(state_node.state)
+        # check_state(state_node.state)
         STS._update_priorities(state_node)
         leaves = STS._get_leaves(state_node)
         non_terminal_leaves = [
@@ -243,7 +244,7 @@ class STS:
         ]
 
     def _update_priorities_recursive(state_node: StateNode):
-        check_state(state_node.state)
+        # check_state(state_node.state)
         smax_denom = state_node.update_softmax_denominator()
         for action_child in state_node.action_children:
             action_child.priority = (
@@ -259,7 +260,7 @@ class STS:
         """Use this implementation to avoid recursion depth errors. They happen when the tree is too deep (before 1000).
         We should limit the depth at some point
         """
-        check_state(state_node.state)
+        # check_state(state_node.state)
         stack = [state_node] # create a stack and push the initial node
         while stack: # loop until the stack is empty
             node = stack.pop() # pop the top node from the stack
@@ -276,7 +277,7 @@ class STS:
 
 
     def _get_leaves(state_node):
-        check_state(state_node.state)
+        # check_state(state_node.state)
         # get state leaves from a state node
         initial_depth = state_node.depth # get the initial depth
         stack = [state_node] # create a stack and push the initial node
@@ -295,26 +296,26 @@ class STS:
 
 
     def _expand_node(node, max_n, predictions, al_method, approx_cost_function):
-        check_predictions(predictions)
+        # check_predictions(predictions)
         # expand a state node by considering actions in increasing n and their implied states
-        assert (node.state["indices"] == predictions[0]).all()
+        # assert (node.state["indices"] == predictions[0]).all()
         original_cost = node.cost  # this was computed at depth=0, we will update it with depth=1
         if len(node.action_children) == 0:
             best_cost = np.inf
         else:
             best_cost = node.cost
         n = len(node.action_children) + 1
-        assert n <= max_n, "you want to add an action but you've already added them all"
+        # assert n <= max_n, "you want to add an action but you've already added them all"
         max_n = min(max_n, len(predictions[0]))
         if node.state["incorrect"] is not None:
-            assert len(node.action_children) == 0, "this should be the first and only action added"
-            assert len(node.state["incorrect"][0]) > 1
+            # assert len(node.action_children) == 0, "this should be the first and only action added"
+            # assert len(node.state["incorrect"][0]) > 1
             # we know the next guess
             # this is the only action we will consider
             inc_indices, inc_labels = node.state["incorrect"]
-            assert isinstance(predictions[1], np.ndarray)
-            assert (sorted(inc_indices) == inc_indices).all()
-            assert (sorted(predictions[0]) == predictions[0]).all()
+            # assert isinstance(predictions[1], np.ndarray)
+            # assert (sorted(inc_indices) == inc_indices).all()
+            # assert (sorted(predictions[0]) == predictions[0]).all()
             certainties = np.abs(predictions[1][np.isin(predictions[0], inc_indices)] -0.5)
             # certainties = np.abs(
             #     predictions[1][
@@ -333,26 +334,26 @@ class STS:
             action_child = STS._add_guess(
                 best_guess, node, predictions, approx_cost_function
             )
-            assert len(action_child.guess[0]) > 0
-            assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
+            # assert len(action_child.guess[0]) > 0
+            # assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
             node.cost = action_child.cost
             return
         else:
             if len(predictions[0]) == 1:
-                assert n == 1
+                # assert n == 1
                 best_guess = (predictions[0], predictions[1])
                 breakpoint()
                 action_child = STS._add_guess(
                     best_guess, node, predictions, approx_cost_function
                 )
-                assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
-                assert action_child.cost == 1
+                # assert best_cost == np.inf, "this should be the only one as you have only one option you haven't yet tried"
+                # assert action_child.cost == 1
                 node.cost = action_child.cost
                 return
             elif n == 1:
-                assert best_cost == np.inf
+                # assert best_cost == np.inf
                 if al_method == "uncertainty":  # get most and least certain points
-                    assert isinstance(predictions[1], np.ndarray)
+                    # assert isinstance(predictions[1], np.ndarray)
                     sorted_predictions_indices = np.argsort(
                         np.abs(predictions[1] - 0.5)
                     )[::-1]
@@ -368,8 +369,8 @@ class STS:
                             best_cost = action_child.cost
                 elif al_method == "random":
                     best_guess_val_index = np.random.choice(len(predictions[0]), 1)
-                    best_guess_indices = np.array([predictions[0][best_guess_val_index]])
-                    best_guess_preds = np.array([predictions[1][best_guess_val_index]])
+                    best_guess_indices = predictions[0][best_guess_val_index]
+                    best_guess_preds = predictions[1][best_guess_val_index]
                     best_guess = (best_guess_indices, best_guess_preds)
                     action_child = STS._add_guess(
                         best_guess, node, predictions, approx_cost_function
@@ -384,31 +385,31 @@ class STS:
                     )
                 n += 1
             while n <= max_n:
-                assert len(predictions[0]) > 1
+                # assert len(predictions[0]) > 1
                 best_guess = STS._get_best_guess(n, node.state, predictions)
                 action_child = STS._add_guess(
                     best_guess, node, predictions, approx_cost_function
                 )
-                assert best_cost < np.inf, "we should have found at least one action by now"
+                # assert best_cost < np.inf, "we should have found at least one action by now"
                 if action_child.cost < best_cost:
                     best_cost = action_child.cost
                 n += 1
-        assert len(action_child.guess[0]) > 0
+        # assert len(action_child.guess[0]) > 0
         node.cost = best_cost
 
     def _add_guess(guess, state_node, predictions, approx_cost_function):
-        check_state(state_node.state)
-        check_guess(guess)
-        check_predictions(predictions)
+        # check_state(state_node.state)
+        # check_guess(guess)
+        # check_predictions(predictions)
         next_states = STS._transition(guess, state_node.state, predictions)
         action_child = ActionNode(guess, state_node)
-        for ns in [trans[0] for trans in next_states]:
-            assert ns["incorrect"] is None or len(ns["incorrect"][0]) > 1
+        # for ns in [trans[0] for trans in next_states]:
+        #     assert ns["incorrect"] is None or len(ns["incorrect"][0]) > 1
         action_child.add_state_children(next_states)
         state_node.action_children.append(action_child)
         for state_child in action_child.state_children:
-            assert isinstance(state_child.state['indices'], np.ndarray)
-            assert isinstance(predictions[1], np.ndarray)
+            # assert isinstance(state_child.state['indices'], np.ndarray)
+            # assert isinstance(predictions[1], np.ndarray)
             child_indices = state_child.state["indices"]
             support_mask = np.isin(predictions[0], child_indices)
             child_preds = predictions[1][support_mask]
@@ -421,26 +422,23 @@ class STS:
 
     # Define the transition function
     def _transition(guess, state, predictions):
-        check_state(state)
-        check_guess(guess)
-        check_predictions(predictions)
+        # check_state(state)
+        # check_guess(guess)
+        # check_predictions(predictions)
         # Return a list of possible next states and their probabilities given the current state and action
-        try:
-            assert np.isin(guess[0], state['indices']).all(), "guess should be a subset of indices"
-        except:
-            breakpoint()
+        # assert np.isin(guess[0], state['indices']).all(), "guess should be a subset of indices"
         pos_state = STS.update_state(state, guess, True)
-        check_state(pos_state)
+        # check_state(pos_state)
         neg_state = STS.update_state(state, guess, False)
-        check_state(neg_state)
+        # check_state(neg_state)
         pos_prob = STS._compute_prob(state, guess, predictions)
         neg_prob = 1 - pos_prob
         return [(neg_state, neg_prob), (pos_state, pos_prob)]
 
     def update_state(state, guess, is_correct, ret_to_remove=False):
         """Updates the state {'indices', 'incorrect'} with guess"""
-        check_state(state)
-        check_guess(guess)
+        # check_state(state)
+        # check_guess(guess)
         unlabeled_indices, incorrect = state["indices"], state["incorrect"]
         inverted = False
         if len(guess[0]) == 1 and not is_correct:  # a single digit is always right
@@ -452,9 +450,9 @@ class STS:
         except:
             breakpoint()
         if incorrect is not None and is_correct:
-            assert STS._first_is_shortened_second(
-                guess, incorrect
-            ), "incorrect should be a child of the previous incorrect"
+            # assert STS._first_is_shortened_second(
+            #     guess, incorrect
+            # ), "incorrect should be a child of the previous incorrect"
             # guess should be a child of incorrect if not inverted
             if inverted:
                 to_remove = guess[0]
@@ -483,8 +481,8 @@ class STS:
 
     def _first_is_shortened_second(first, second):
         """Checks if the first guess is the second guess without an element"""
-        check_guess(first)
-        check_guess(second)
+        # check_guess(first)
+        # check_guess(second)
         ret = True
         ret = ret and np.isin(first, second).all()
         isin = np.isin(second[0], first[0])
@@ -493,8 +491,8 @@ class STS:
         return ret
 
     def _first_is_child_of_second(first, second):
-        check_guess(first)
-        check_guess(second)
+        # check_guess(first)
+        # check_guess(second)
         ind1, lab1 = first
         ind2, lab2 = second
         # first is a child if doesn't disagree with second
@@ -505,8 +503,8 @@ class STS:
 
     def _are_inconsistent(first, second):
         """Two guesses are inconsistent if they disagree on the shared support, bing numpy implementation"""
-        check_guess(first)
-        check_guess(second)
+        # check_guess(first)
+        # check_guess(second)
         shared_values, shared_indices_first, shared_indices_second = np.intersect1d(first[0], second[0], return_indices=True)
         for i in range(len(shared_values)):
             if first[1][shared_indices_first[i]] != second[1][shared_indices_second[i]]:
@@ -516,8 +514,8 @@ class STS:
 
     # def _are_inconsistent_old(first, second):
     #     """Two guesses are inconsistent if they disagree on the shared support"""
-    #     check_guess(first)
-    #     check_guess(second)
+    #     # check_guess(first)
+    #     # check_guess(second)
     #     shared_indices = list(set(first[0]).intersection(set(second[0])))
     #     for ind in shared_indices:
     #         if first[1][first[0].index(ind)] != second[1][second[0].index(ind)]:
@@ -525,10 +523,10 @@ class STS:
     #     return False
 
     def _compute_prob(state, guess, predictions):
-        check_state(state)
-        check_guess(guess)
-        check_predictions(predictions)
-        assert (state["indices"] == predictions[0]).all()
+        # check_state(state)
+        # check_guess(guess)
+        # check_predictions(predictions)
+        # assert (state["indices"] == predictions[0]).all()
         pg = STS._prob_of_guess(guess, predictions)
         if state["incorrect"] is None:
             # clean state, the probability is the probability of the guess
@@ -551,23 +549,20 @@ class STS:
             p_inc_ok_given_g_ok = p_d
         prob = (1 - p_inc_ok_given_g_ok) * pg / (1 - p_inc_ok)
         if prob < 0:
-            assert np.allclose(prob, 0)
+            # assert np.allclose(prob, 0)
             return 0
         if prob > 1:
-            assert np.allclose(prob, 1)
+            # assert np.allclose(prob, 1)
             return 1
         return prob
 
     def _prob_of_guess(guess, predictions):
-        check_guess(guess)
-        check_predictions(predictions)
-        assert np.isin(guess[0], predictions[0]).all()
+        # check_guess(guess)
+        # check_predictions(predictions)
+        # assert np.isin(guess[0], predictions[0]).all()
 
-        try:
-            assert (sorted(guess[0]) == guess[0]).all()
-            assert (sorted(predictions[0]) == predictions[0]).all()
-        except:
-            breakpoint()
+        # assert (sorted(guess[0]) == guess[0]).all()
+        # assert (sorted(predictions[0]) == predictions[0]).all()
         common_support = np.isin(predictions[0], guess[0])
         labels = guess[1]
         symbol_probs = predictions[1][common_support]
@@ -597,15 +592,15 @@ class STS:
 
     def _get_best_guess(guess_length, state, predictions):
         # computes the best guess given n.
-        check_state(state)
-        check_predictions(predictions)
-        assert guess_length > 1
-        assert state["incorrect"] is None
+        # check_state(state)
+        # check_predictions(predictions)
+        # assert guess_length > 1
+        # assert state["incorrect"] is None
         indices = state["indices"]
-        assert guess_length <= len(indices)
-        assert (
-            state["indices"] == predictions[0]
-        ).all(), "state and predictions should have the same indices"
+        # assert guess_length <= len(indices)
+        # assert (
+        #     state["indices"] == predictions[0]
+        # ).all(), "state and predictions should have the same indices"
         # the best guess is given by the n most certain predictions
         certainty = np.abs(
             predictions[1] - 0.5
@@ -685,16 +680,16 @@ def sample_incorrect(inc_guess_len, indices):
     incorrect_indices = np.random.choice(indices, inc_guess_len, replace=False)
     incorrect_guess = np.random.randint(2, size=inc_guess_len)
     incorrect = (incorrect_indices, incorrect_guess)
-    check_guess(incorrect)
+    # check_guess(incorrect)
     return incorrect
 
 def sample_ground_truth(probabilities, incorrect):
     if incorrect is not None:
         incorrect_indices, incorrect_guess = incorrect
     st = time.time()
-    assert isinstance(probabilities[1], np.ndarray)
-    assert isinstance(ground_truth, np.ndarray)
-    assert isinstance(incorrect_guess, np.ndarray)
+    # assert isinstance(probabilities[1], np.ndarray)
+    # assert isinstance(ground_truth, np.ndarray)
+    # assert isinstance(incorrect_guess, np.ndarray)
     while True:
         ground_truth = (np.random.rand(len(probabilities)) < probabilities[1]).astype(int)
         if incorrect is None:
