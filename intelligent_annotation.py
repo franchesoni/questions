@@ -29,7 +29,7 @@ def get_ia_curve(
     train_dataset_indices_list = train_dataset.indices.tolist()
     assert sorted(train_dataset_indices_list) == train_dataset_indices_list
     indices = sorted(list(set(train_dataset_indices_list) - set(initial_labeled_indices)))
-    state = {"indices": indices, "incorrect":None}
+    state = {"indices": np.array(indices), "incorrect":None}
     root_node = STS.initialize_root_node(state)
 
     loss_fn = torch.nn.BCEWithLogitsLoss()
@@ -39,7 +39,7 @@ def get_ia_curve(
     n_queries = 0
     while n_queries < max_queries and len(unlabeled_ds) > 0:  # fit, get point, label
         ### data update ###
-        labeled_ds, unlabeled_ds = get_labeled_unlabeled(
+        labeled_ds, unlabeled_ds, unlabeled_indices = get_labeled_unlabeled(
             train_dataset, labeled_indices
         )  # unlabeled_ds also stores the unlabeled indices
         if root_node.state['incorrect'] is None:
@@ -63,20 +63,26 @@ def get_ia_curve(
         predictor.eval()
         with torch.no_grad():
             pred_probs = torch.sigmoid(predictor(unlabeled_ds.data).flatten())
-            new_predictions = (unlabeled_ds.indices.cpu().numpy().tolist(), pred_probs.cpu().numpy().tolist())
+            new_predictions = (unlabeled_indices, pred_probs.cpu().numpy())
         alia.set_unlabeled_predictions(new_predictions)
         ### query ###
         best_question_node = alia.tree_search(root_node)
         question = best_question_node.guess
         indices_to_ask, guess = question
         vis.visualize_question(train_dataset.data[indices_to_ask], guess, n_queries)
-        answer = train_dataset.targets[indices_to_ask].cpu().numpy().tolist() == guess
+        answer = (train_dataset.targets[indices_to_ask].cpu().numpy() == guess).all()
         # indices to remove from unlabeled_indices are the ones we annotate
         ### state update ###
         state, to_remove = STS.update_state(state, question, answer, ret_to_remove=True)
         root_node = STS.set_new_root_node(best_question_node.state_children[answer*1])
-        assert root_node.state == state
-        labeled_indices = labeled_indices + to_remove
+        # check for equality
+        check = True
+        for key in root_node.state:
+            if not np.array_equal(root_node.state[key], state[key]):
+                check = False
+                break
+        assert check
+        labeled_indices = labeled_indices + to_remove.tolist()
 
         n_queries += 1
         pbar.update(1)

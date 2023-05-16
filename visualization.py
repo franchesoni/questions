@@ -631,6 +631,6 @@ def visualize_question(data, guess, n_queries):
     plt.close()
 
     
-curves = load_curves()
-plot_curves3(curves, savename='results/curves/plot')
+# curves = load_curves()
+# plot_curves3(curves, savename='results/curves/plot')
 

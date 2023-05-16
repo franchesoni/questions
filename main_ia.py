@@ -1,5 +1,4 @@
 from pathlib import Path
-from active_learning import get_al_curve
 from engine import seed_everything
 import datetime
 import numpy as np
@@ -7,7 +6,6 @@ import numpy as np
 from data import get_dataset, DATASET_NAMES
 from predictor import get_resnet
 from intelligent_annotation import get_ia_curve
-from active_learning import CoreSet, UncertaintySampling, get_al_curve, RandomSampling
 
 
 def run_ia_experiment(
@@ -44,7 +42,7 @@ def run_ia_experiment(
             pretrained=pretrained, n_channels=n_channels, compile=False, device=device
         )
         now = str(datetime.datetime.utcnow()).replace(' ', '-').replace(':', '-').replace('.', '-')
-        dstfilename = f"results/curves/curve_{now}_seed_{seed}_exp_type_{exp_type}_exp_name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max_queries_{max_queries}_use_only_first_{use_only_first}_use_only_first_test_{use_only_first_test}.npy"
+        dstfilename = f"results/curves/curve_{now}_seed_{seed}_exp-type_{exp_type}_exp-name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max-queries_{max_queries}_use-only-first_{use_only_first}_use-only-first-test_{use_only_first_test}_max-expansions_{sts_kwargs['max_expansions']}_max-n_{sts_kwargs['max_n']}_cost-fn_{sts_kwargs['cost_fn']}_reduce-certainty-factor_{sts_kwargs['reduce_certainty_factor']}.npy"
         curve = get_ia_curve(
             max_queries,
             predictor,
@@ -63,9 +61,9 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                 for exp_name in ["uncertainty", "random"]:
                     for max_n in [8, 4, 2, 16]:
                         for cost_fn in ["entropy", "length"]:
-                            for reduce_uncertainty_factor in [0.01, 0.1, 0.5, 0.9]:
+                            for reduce_uncertainty_factor in [0.01, 0.5, 0.9, 0.1]:
                                 sts_kwargs = {
-                                    "max_expansions": 8,
+                                    "max_expansions": 32,
                                     "max_n": max_n,
                                     "al_method": exp_name,
                                     "cost_fn": cost_fn,
@@ -81,11 +79,12 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                                 elif run == 1:
                                     seeds = [3, 4, 5]
                                     device='cuda:1'
+                                    # device='cpu'
                                 else:
                                     raise ValueError("run must be 0 or 1")
 
                                 if dev:
-                                    max_queries = 5
+                                    max_queries = 10
                                     use_only_first = 6000
                                     use_only_first_test = 1000
                                     seeds = [0]
@@ -114,7 +113,7 @@ def run_all_experiments(run=0, dev=False, profiler=None):
 
 
 if __name__ == "__main__":
-    run_all_experiments(run=1, dev=False, profiler=None)
+    run_all_experiments(run=0, dev=False, profiler=None)
     # import cProfile
     # pr = cProfile.Profile()
     # pr.enable()

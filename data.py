@@ -367,7 +367,7 @@ def get_labeled_unlabeled(train_dataset: InMemoryDataset, labeled_indices: list[
     unlabeled_ds = UnlabeledWrapper(train_dataset).get_new_ds_from_indices(
         unlabeled_indices
     )  # indices are needed for selection and we unlabel the dataset to prove we aren't cheating
-    return labeled_ds, unlabeled_ds
+    return labeled_ds, unlabeled_ds, np.array(unlabeled_indices)
 
 
 ###### testing #######3

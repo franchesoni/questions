@@ -115,7 +115,7 @@ def get_al_curve(
     pbar = tqdm.tqdm(total=len(train_dataset) - len(initial_labeled_indices))
     n_queries = 0
     while n_queries < max_queries and len(unlabeled_ds) > 0:  # fit, get point, label
-        labeled_ds, unlabeled_ds = get_labeled_unlabeled(
+        labeled_ds, unlabeled_ds, unlabeled_indices = get_labeled_unlabeled(
             train_dataset, labeled_indices
         )  # unlabeled_ds also stores the unlabeled indices
         predictor = fit_predictor(
