@@ -43,7 +43,7 @@ def run_ia_experiment(
             pretrained=pretrained, n_channels=n_channels, compile=False, device=device
         )
         now = str(datetime.datetime.utcnow()).replace(' ', '-').replace(':', '-').replace('.', '-')
-        dstfilename = f"results/curves/curve_{now}_seed_{seed}_exp-type_{exp_type}_exp-name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max-queries_{max_queries}_use-only-first_{use_only_first}_use-only-first-test_{use_only_first_test}_max-expansions_{sts_kwargs['max_expansions']}_max-n_{sts_kwargs['max_n']}_cost-fn_{sts_kwargs['cost_fn']}_reduce-certainty-factor_{sts_kwargs['reduce_certainty_factor']}.npy"
+        dstfilename = f"results/curves/curve_{now}_seed_{seed}_type_{exp_type}_name_{experiment_name}_dataset_{dataset_name}_queries_{max_queries}_expansions_{sts_kwargs['max_expansions']}_maxn_{sts_kwargs['max_n']}_cost_{sts_kwargs['cost_fn']}_factor_{sts_kwargs['reduce_certainty_factor']}.npy"
         curve = get_ia_curve(
             max_queries,
             predictor,
