@@ -103,7 +103,7 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                                     device=device,
                                 )
                                 print("_"*80)
-                                print(f"Finished {exp_type} {exp_name} {dataset_index} {binarizer} {pretrained}")
+                                print(f"Finished {exp_type} {exp_name} {dataset_index} {sts_kwargs}")
                                 print("_"*80)
                                 if profiler and dev:
                                     profiler.disable()
