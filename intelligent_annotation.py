@@ -21,7 +21,8 @@ def get_ia_curve(
     n_labeled = curve.copy()
     labeled_indices = initial_labeled_indices
     unlabeled_ds = "a value to start the loop"
-    shutil.rmtree('questions')
+    if Path('questions').exists():
+        shutil.rmtree('questions')
     Path('questions').mkdir(exist_ok=True, parents=True)
 
     alia = STS(**sts_kwargs)
@@ -69,7 +70,7 @@ def get_ia_curve(
         best_question_node = alia.tree_search(root_node)
         question = best_question_node.guess
         indices_to_ask, guess = question
-        vis.visualize_question(train_dataset.data[indices_to_ask], guess, n_queries)
+        # vis.visualize_question(train_dataset.data[indices_to_ask], guess, n_queries)
         answer = (train_dataset.targets[indices_to_ask].cpu().numpy() == guess).all()
         # indices to remove from unlabeled_indices are the ones we annotate
         ### state update ###
