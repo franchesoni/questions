@@ -88,7 +88,7 @@ def get_ia_curve(
         pbar.update(1)
         pbar.set_description(f"Test performance: {performance}")
         if dstfilename is not None:
-            np.save(dstfilename, curve)
+            np.save(dstfilename, {'curve':curve, 'n_labeled':n_labeled})
     return {'curve':curve, 'n_labeled':n_labeled}
 
 
