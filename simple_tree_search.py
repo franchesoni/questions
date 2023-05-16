@@ -342,7 +342,6 @@ class STS:
             if len(predictions[0]) == 1:
                 # assert n == 1
                 best_guess = (predictions[0], predictions[1])
-                breakpoint()
                 action_child = STS._add_guess(
                     best_guess, node, predictions, approx_cost_function
                 )
