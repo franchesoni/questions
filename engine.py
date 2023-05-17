@@ -42,7 +42,8 @@ def fit_predictor(predictor, loss_fn, labeled_ds, n_epochs=24, verbose=True):
         loss.backward()
         optimizer.step()
         if verbose:
-            print(f"Epoch {epoch+1} / {n_epochs}, loss {loss.item()}", end="\r")
+            # print(f"Epoch {epoch+1} / {n_epochs}, loss {loss.item()}", end="\r")
+            print(f"Epoch {epoch+1} / {n_epochs}, loss {loss.item()}")
     if verbose:
         print("Done fitting predictor with loss", loss.item(), "       ")
     return predictor
