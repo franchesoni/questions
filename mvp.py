@@ -6,11 +6,12 @@ from data import get_dataset, DATASET_NAMES
 
 def mvp1():
     """Check whether we can train a resnet on few data for cifar"""
-    dataset_index = 4
+    dataset_index = 0
     binarizer = "geq5"
     use_only_first = 6000
-    use_only_first_test = 6000
+    use_only_first_test = 1000
     device = 'cuda:1'
+    # device = 'cpu'
     pretrained = False
 
     dataset_name = DATASET_NAMES[dataset_index]
@@ -31,8 +32,13 @@ def mvp1():
     eval_loss_fn = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
     predictor = fit_predictor(
-        predictor, loss_fn, train_ds, verbose=False
+        predictor, loss_fn, train_ds, verbose=True
     )
     performance = evaluate_predictor(
-        predictor, eval_loss_fn, test_ds, verbose=False
+        predictor, eval_loss_fn, test_ds, verbose=True
     )
+    print(performance)
+    breakpoint()
+
+if __name__ == "__main__":
+    mvp1()
