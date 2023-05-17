@@ -32,8 +32,11 @@ def plot_model_outputs(
     ys = model(xs)
     # plot the background
     plt.figure()
-    plt.contourf(x1, x2, ys.reshape(x1.shape))
-    plt.colorbar()
+    sns.set_theme(context='paper', style='darkgrid', font_scale=1.5)
+    levels = np.linspace(0, 1, 11)
+    ctset = plt.contourf(x1, x2, ys.reshape(x1.shape), levels=levels, vmin=0, vmax=1)
+    cbar = plt.colorbar(ctset, ticks=levels)
+    cbar.set_label("Predicted probability")
     norm = colors.Normalize(vmin=0, vmax=1)
     if len(X_to_annotate) > 0:
         # plot the data
@@ -44,6 +47,8 @@ def plot_model_outputs(
             cmap=plt.cm.Paired,
             edgecolors="k",
             norm=norm,
+            # set point size
+            s=200,
         )
         # draw a circle around those indices to ask
         plt.scatter(
@@ -143,13 +148,14 @@ def box_and_whisker_plot(results, name):
         key[12:]: results[key] for key in results if key.startswith("n_questions_")
     }
     entropies = results["entropies"]
-    to_plot_names = list(n_questions_results.keys()) + ["entropies"]
+    to_plot_names = ["IA", "Huffman", "Entropy"]
     to_plot_values = list(n_questions_results.values()) + [entropies]
 
     fig, ax = plt.subplots()
     plot = sns.boxplot(data=to_plot_values, ax=ax)
     sns.stripplot(data=to_plot_values, ax=ax)
     plot.set_xticklabels(to_plot_names)
+    plt.ylabel("Number of questions")
     fig.savefig(f"{name}.png")
     plt.close()
 
@@ -158,13 +164,13 @@ def box_and_whisker_plot(results, name):
         key: [nq - entropy for nq, entropy in zip(n_questions_results[key], entropies)]
         for key in n_questions_results
     }
-    to_plot_names = list(differences.keys())
+    to_plot_names = ["IA", "Huffman"]  #list(differences.keys())
     to_plot_values = list(differences.values())
     fig, ax = plt.subplots()
     plot = sns.boxplot(data=to_plot_values, ax=ax)
     sns.stripplot(data=to_plot_values, ax=ax)
     plot.set_xticklabels(to_plot_names)
-    plot.set_ylabel("n questions - entropy")
+    plot.set_ylabel("Q - H(Y|X)")
     fig.savefig(f"{name}_diffs.png")
     plt.close()
 
@@ -236,10 +242,11 @@ def visualize_huffman_analysis(results, name):
 
     sns.set_theme()
     fig, ax = plt.subplots()
-    plt.title("Huffman expected number of questions")
+    # plt.title("Huffman expected number of questions")
     # make scatter
     plot = sns.scatterplot(data=results, x="entropies", y="expected_lengths", ax=ax)
-    plot.set_ylabel("expected number of questions")
+    plot.set_xlabel("Entropy")
+    plot.set_ylabel("Expected number of questions")
     # plot identity line
     limit = max(np.max(results["expected_lengths"]), np.max(results["entropies"]))
     sns.lineplot(x=[0, limit + 1], y=[0, limit + 1], ax=ax)
@@ -489,17 +496,16 @@ def plot_curves2(curves, savename):
 
 def plot_curves3(curves, savename, max_queries=1000):
     # curves is a list [{'curve':curve, 'seed':seed, ...}]
-    curves = [curve for curve in curves if curve['binarizer'] =='geq5' and curve['max_queries']==max_queries]
+    curves = [curve for curve in curves if 'queries' in curve and curve['queries']==str(max_queries)]
     datasets = set([curve['dataset'] for curve in curves])
 
     sns.set_theme()
     for dataset in datasets:
-        plt.figure()
         seeds_dict = {}
         for curve in curves:
             if curve['dataset'] != dataset:
                 continue
-            name = curve['exp_type'] + '_' + curve['exp_name']
+            name = curve['type'] + '_' + curve['name'] + '_' + curve['maxn'] + '_' + curve['cost'] + '_' + curve['factor']
             if name not in seeds_dict:
                 seeds_dict[name] = [curve]
                 print(name)
@@ -514,9 +520,11 @@ def plot_curves3(curves, savename, max_queries=1000):
                 print(name)
 
 
-        colors = sns.color_palette("husl", len(seeds_dict))
-        for i, name in enumerate(seeds_dict.keys()):
+        plt.figure(figsize=(10,10))
+        colors = sns.color_palette("dark", len(seeds_dict))
+        for i, name in enumerate(sorted(list(seeds_dict.keys()))):
             accs = []
+            n_labelss = []
             for seed_curve in seeds_dict[name]:
                 losses = [res["loss"] for res in seed_curve['curve']]
                 tps = np.array([res["tp"] for res in seed_curve['curve']])
@@ -526,21 +534,75 @@ def plot_curves3(curves, savename, max_queries=1000):
                 accuracies = (tps + tns) / (
                     tps + fps + fns + tns
                 )
-                sns.lineplot(x=np.arange(len(accuracies)), y=accuracies, linestyle='dashed', color=colors[i],
-                            alpha=0.2,
-                            )
+                # sns.lineplot(x=np.arange(len(accuracies)), y=accuracies, linestyle='dashed', color=colors[i],
+                #             alpha=0.1,
+                #             )
                 if 'n_labels' in seed_curve:
                     n_labels = np.array(seed_curve['n_labels'])
-                    # sns.lineplot(x=np.arange(len(accuracies)), y=n_labels / np.arange(1, len(n_labels) + 1), color=colors[i], alpha=0.4, linestyle='dotted')
+                    sns.lineplot(x=np.arange(len(accuracies)), y=n_labels ,#/ np.arange(1, len(n_labels) + 1), 
+                                 color=colors[i], alpha=0.4, linestyle='dotted')
                 accs.append(accuracies)
+                n_labelss.append(n_labels)
+
+            maxlen = max([len(nl) for nl in n_labelss])
+            # fill in the rest with the last value
+            for ind in range(len(n_labelss)):
+                n_labelss[ind] = np.concatenate((n_labelss[ind],np.ones(maxlen - len(n_labelss[ind])) * n_labelss[ind][-1])) 
+            n_labelss = np.array(n_labelss)
+            sns.lineplot(
+                x=np.tile(np.arange(n_labelss.shape[1]), n_labelss.shape[0]),
+                y=n_labelss.flatten(),
+                linewidth=3,
+                color=colors[i],
+                label=f"{name}",
+                alpha=1,
+                errorbar="sd",
+            )
+            sns.lineplot(
+                x=np.arange(n_labelss.shape[1]),
+                y=np.arange(n_labelss.shape[1]),
+                linewidth=1,
+                color='black',
+                alpha=1,
+                linestyle='dashed',
+            )
+        plt.xlabel("number of questions")
+        plt.ylabel("number of labeled samples")
+        plt.legend()#loc='lower center')
+        plt.savefig(f"{savename}_{dataset}_labels.png")
+        plt.close()
+
+        plt.figure(figsize=(10,10))
+        colors = sns.color_palette("dark", len(seeds_dict))
+        for i, name in enumerate(sorted(list(seeds_dict.keys()))):
+            accs = []
+            n_labelss = []
+            for seed_curve in seeds_dict[name]:
+                losses = [res["loss"] for res in seed_curve['curve']]
+                tps = np.array([res["tp"] for res in seed_curve['curve']])
+                fps = np.array([res["fp"] for res in seed_curve['curve']])
+                fns = np.array([res["fn"] for res in seed_curve['curve']])
+                tns = np.array([res["tn"] for res in seed_curve['curve']])
+                accuracies = (tps + tns) / (
+                    tps + fps + fns + tns
+                )
+                # sns.lineplot(x=np.arange(len(accuracies)), y=accuracies, linestyle='dashed', color=colors[i],
+                #             alpha=0.1,
+                #             )
+                accs.append(accuracies)
+
+            maxlen = max([len(acc) for acc in accs])
+            # fill in the rest with the last value
+            for ind in range(len(accs)):
+                accs[ind] = np.concatenate((accs[ind],np.ones(maxlen - len(accs[ind])) * accs[ind][-1])) 
             accs = np.array(accs)
             sns.lineplot(
                 x=np.tile(np.arange(accs.shape[1]), accs.shape[0]),
                 y=accs.flatten(),
-                linewidth=5,
+                linewidth=3,
                 color=colors[i],
                 label=f"{name}",
-                alpha=1,
+                alpha=0.5,
                 errorbar="sd",
             )
         plt.xlabel("number of questions")
@@ -549,12 +611,95 @@ def plot_curves3(curves, savename, max_queries=1000):
         plt.savefig(f"{savename}_{dataset}.png")
         plt.close()
 
-def load_curves():
+
+def plot_curves4(curves1, curves2, savename):
+    datasets = set([curve['dataset'] for curve in curves2])
+
+    to_visualize = [
+        'ia_uncertainty_4_entropy_0.1',
+        'ia_uncertainty_4_entropy_0.5',
+        'ia_uncertainty_8_entropy_0.5',
+    ]
+
+    sns.set_theme()
+    for dataset in datasets:
+        seeds_dict = {}
+        for curve in curves1 + curves2:
+            if curve['dataset'] != dataset:
+                continue
+            if curve['exp-type'] == 'al':
+                name = curve['exp-type'] + '_' + curve['exp-name']
+            elif curve['exp-type'] == 'ia':
+                name = curve['exp-type'] + '_' + curve['exp-name'] + '_' + curve['max-n'] + '_' + curve['cost-fn'] + '_' + curve['reduce-certainty-factor']
+            if 'max-n' in curve and name not in to_visualize:
+                continue
+
+            if name not in seeds_dict:
+                seeds_dict[name] = [curve]
+                print(name)
+            else:
+                same_seed = [(ind, oldcurve) for ind, oldcurve in enumerate(seeds_dict[name]) if oldcurve['seed'] == curve['seed']]
+                if len(same_seed) > 0:
+                    if same_seed[0][1]['timestamp'] < curve['timestamp']:
+                        seeds_dict[name].pop(same_seed[0][0])
+                    else:
+                        continue
+                seeds_dict[name].append(curve)
+                print(name)
+
+
+        plt.figure(figsize=(40,40))
+        colors = sns.color_palette("dark", len(seeds_dict))
+        for i, name in enumerate(sorted(list(seeds_dict.keys()))):
+            accs = []
+            n_labelss = []
+            for seed_curve in seeds_dict[name]:
+                losses = [res["loss"] for res in seed_curve['curve']]
+                tps = np.array([res["tp"] for res in seed_curve['curve']])
+                fps = np.array([res["fp"] for res in seed_curve['curve']])
+                fns = np.array([res["fn"] for res in seed_curve['curve']])
+                tns = np.array([res["tn"] for res in seed_curve['curve']])
+                accuracies = (tps + tns) / (
+                    tps + fps + fns + tns
+                )
+                # sns.lineplot(x=np.arange(len(accuracies)), y=accuracies, linestyle='dashed', color=colors[i],
+                #             alpha=0.1,
+                #             )
+                accs.append(accuracies)
+
+            # maxlen = max([len(acc) for acc in accs])
+            maxlen = 500
+            # fill in the rest with the last value
+            for ind in range(len(accs)):
+                if len(accs[ind]) > maxlen:
+                    accs[ind] = accs[ind][:maxlen]
+                else:
+                    accs[ind] = np.concatenate((accs[ind], np.ones(maxlen - len(accs[ind])) * accs[ind][-1])) 
+            accs = np.array(accs)
+            sns.lineplot(
+                x=np.tile(np.arange(accs.shape[1]), accs.shape[0]),
+                y=accs.flatten(),
+                linewidth=3,
+                color=colors[i],
+                label=f"{name}",
+                alpha=0.5,
+                errorbar="sd",
+            )
+        plt.xlabel("number of questions")
+        plt.ylabel("test accuracy")
+        plt.legend()#loc='lower center')
+        plt.savefig(f"{savename}_al_ia_{dataset}.png")
+        plt.close()
+
+
+
+
+def load_curves(dir='results/curves/'):
     # curves have names
     # f"results/curve_{now}_seed_{seed}_exp_type_{exp_type}_exp_name_{experiment_name}_dataset_{dataset_name}_pretrained_{pretrained}_binarizer_{binarizer}_max_queries_{max_queries}_use_only_first_{use_only_first}_use_only_first_test_{use_only_first_test}.npy"
     # this function extracts the curves and returns them in a list of dicts
     # each dict on the list has {'curve':..., 'seed': ..., ...}
-    filenames = os.listdir('results/curves')
+    filenames = os.listdir(dir)
     curvefilenames = [
         file for file in filenames if file.startswith("curve") and file.endswith(".npy")
     ]
@@ -564,24 +709,27 @@ def load_curves():
         # only those in new version
         if not '-' in curvefname.split('_')[1]:
             continue
-        curve = np.load('results/curves/'+curvefname, allow_pickle=True)
+        curve = np.load(dir+curvefname, allow_pickle=True)
         if len(curve.shape) == 0:
             curve = curve.tolist()
             curve, n_labels = curve['curve'], curve['n_labeled']
             new_curve['n_labels'] = n_labels
+        split_stem = curvefname[:-4].split("_")
         new_curve['curve'] = curve
-        new_curve['timestamp'] = curvefname[:-4].split("_")[1]
-        new_curve['seed'] = int(curvefname[:-4].split("_")[3])
-        new_curve['exp_type'] = curvefname[:-4].split("_")[6]
-        new_curve['exp_name'] = curvefname[:-4].split("_")[9]
-        new_curve['dataset'] = curvefname[:-4].split("_")[11]
-        new_curve['pretrained'] = curvefname[:-4].split("_")[13]
-        new_curve['binarizer'] = curvefname[:-4].split("_")[15]
-        new_curve['max_queries'] = int(curvefname[:-4].split("_")[18])
-        new_curve['use_only_first'] = curvefname[:-4].split("_")[22]
-        new_curve['use_only_first_test'] = curvefname[:-4].split("_")[27]
-        # print("loading curve ", curvefname)
-        # print("loaded curve ", {k:v for k,v in new_curve.items() if k != 'curve'})
+        new_curve['timestamp'] = split_stem[1]
+        for ind in range(3, len(split_stem), 2):
+            new_curve[split_stem[ind-1]] = split_stem[ind]
+        # new_curve['seed'] = int(curvefname[:-4].split("_")[3])
+        # new_curve['exp_type'] = curvefname[:-4].split("_")[6]
+        # new_curve['exp_name'] = curvefname[:-4].split("_")[9]
+        # new_curve['dataset'] = curvefname[:-4].split("_")[11]
+        # new_curve['pretrained'] = curvefname[:-4].split("_")[13]
+        # new_curve['binarizer'] = curvefname[:-4].split("_")[15]
+        # new_curve['max_queries'] = int(curvefname[:-4].split("_")[18])
+        # new_curve['use_only_first'] = curvefname[:-4].split("_")[22]
+        # new_curve['use_only_first_test'] = curvefname[:-4].split("_")[27]
+        # # print("loading curve ", curvefname)
+        # # print("loaded curve ", {k:v for k,v in new_curve.items() if k != 'curve'})
         curves.append(new_curve)
     return curves
 
@@ -631,6 +779,14 @@ def visualize_question(data, guess, n_queries):
     plt.close()
 
     
-# curves = load_curves()
-# plot_curves3(curves, savename='results/curves/plot')
+# curves = load_curves(dir='resultsjz/curves/')
+# plot_curves3(curves, savename='resultsjz/curves/plot', max_queries=500)
+# curves = load_curves(dir='results/curves/')
+# plot_curves3(curves, savename='results/curves/plot', max_queries=2500)
+
+# curves1 = load_curves(dir='results/curves/')
+# curves2 = load_curves(dir='resultsjz2/curves/')
+# plot_curves4(curves1, curves2, savename='results/curves/plot')
+
+
 
