@@ -318,12 +318,6 @@ class STS:
             # assert (sorted(inc_indices) == inc_indices).all()
             # assert (sorted(predictions[0]) == predictions[0]).all()
             certainties = np.abs(predictions[1][np.isin(predictions[0], inc_indices)] -0.5)
-            # certainties = np.abs(
-            #     predictions[1][
-            #         [predictions[0].index(ind) for ind in inc_indices]
-            #     ]
-            #     - 0.5
-            # )
             less_certain_index = np.argsort(certainties)[0]
             new_indices = np.concatenate((
                 inc_indices[:less_certain_index] , inc_indices[less_certain_index + 1 :]
@@ -458,16 +452,13 @@ class STS:
                 to_remove = guess[0]
             else:  # guess wasn't inverted, then we know that the extra bit in incorrect was wrong and we annotate it correctly
                 inc_ind = incorrect[0][~np.isin(incorrect[0], guess[0])] 
-                # inc_ind = list(set(incorrect[0]) - set(guess[0]))[0]
                 to_remove = np.concatenate((guess[0], inc_ind))
             # now we remove all the indices of guess and the inc_ind from the state (we don't care about the label here but only on the outer loop. We care just about the next state)
             new_indices = unlabeled_indices[~np.isin(unlabeled_indices, to_remove)]
-            # new_indices = [ind for ind in unlabeled_indices if ind not in to_remove]
             new_incorrect = None
         elif incorrect is None and is_correct:
             to_remove = guess[0]
             new_indices = unlabeled_indices[~np.isin(unlabeled_indices, to_remove)]
-            # new_indices = [ind for ind in unlabeled_indices if ind not in to_remove]
             new_incorrect = None
         elif not is_correct:
             # we remove the previous incorrect and add the guess as incorrect
@@ -512,15 +503,7 @@ class STS:
         return False
 
 
-    # def _are_inconsistent_old(first, second):
-    #     """Two guesses are inconsistent if they disagree on the shared support"""
-    #     # check_guess(first)
-    #     # check_guess(second)
-    #     shared_indices = list(set(first[0]).intersection(set(second[0])))
-    #     for ind in shared_indices:
-    #         if first[1][first[0].index(ind)] != second[1][second[0].index(ind)]:
-    #             return True
-    #     return False
+
 
     def _compute_prob(state, guess, predictions):
         # check_state(state)
@@ -567,11 +550,6 @@ class STS:
         labels = guess[1]
         symbol_probs = predictions[1][common_support]
         prob = np.prod(symbol_probs ** labels * (1 - symbol_probs) ** (1 - labels))
-        # prob = 1
-        # for i, label in zip(guess[0], guess[1]):
-        #     ind_of_predictions = predictions[0].index(i)
-        #     symbol_prob = predictions[1][ind_of_predictions]
-        #     prob *= symbol_prob**label * (1 - symbol_prob) ** (1 - label)
         return prob
 
     def _prob_of_guesses(guesses, predictions):
@@ -680,16 +658,16 @@ def sample_incorrect(inc_guess_len, indices):
     incorrect_indices = np.random.choice(indices, inc_guess_len, replace=False)
     incorrect_guess = np.random.randint(2, size=inc_guess_len)
     incorrect = (incorrect_indices, incorrect_guess)
-    # check_guess(incorrect)
+    check_guess(incorrect)
     return incorrect
 
 def sample_ground_truth(probabilities, incorrect):
     if incorrect is not None:
         incorrect_indices, incorrect_guess = incorrect
     st = time.time()
-    # assert isinstance(probabilities[1], np.ndarray)
-    # assert isinstance(ground_truth, np.ndarray)
-    # assert isinstance(incorrect_guess, np.ndarray)
+    assert isinstance(probabilities[1], np.ndarray)
+    assert isinstance(ground_truth, np.ndarray)
+    assert isinstance(incorrect_guess, np.ndarray)
     while True:
         ground_truth = (np.random.rand(len(probabilities)) < probabilities[1]).astype(int)
         if incorrect is None:
