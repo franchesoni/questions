@@ -7,7 +7,9 @@ if torch.__version__.startswith("2"):
 
 def get_resnet(pretrained=False, n_channels=3, compile=False, device=None):
     assert n_channels in [1, 3]
-    net = resnet18(weights=ResNet18_Weights if pretrained else None, num_classes=1)
+    net = resnet18(weights=ResNet18_Weights if pretrained else None, num_classes=1000 if pretrained else 1)
+    if pretrained:
+        net.fc = torch.nn.Linear(512, 1)
     def new_forward(self, x: torch.Tensor) -> torch.Tensor:
         B, C, H, W = x.shape
         if C == 1:
