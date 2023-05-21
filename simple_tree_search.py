@@ -125,9 +125,10 @@ class ActionNode:
 
     def add_state_children(self, next_states):
         for state, prob in next_states:
-            state_child = StateNode(state, self, self.depth+1)
-            self.state_children.append(state_child)
-            self.children_probs.append(prob)
+            if len(state['indices']) > 0:
+                state_child = StateNode(state, self, self.depth+1)
+                self.state_children.append(state_child)
+                self.children_probs.append(prob)
 
 
 class STS:
@@ -341,7 +342,7 @@ class STS:
         else:
             if len(predictions[0]) == 1:
                 # assert n == 1
-                best_guess = (predictions[0], predictions[1])
+                best_guess = (predictions[0], np.round(predictions[1]))
                 action_child = STS._add_guess(
                     best_guess, node, predictions, approx_cost_function
                 )
@@ -358,8 +359,8 @@ class STS:
                     )[::-1]
                     # most likely point
                     for best_guess in [
-                        (np.array([predictions[0][sorted_predictions_indices[0]]]), np.array([predictions[1][sorted_predictions_indices[0]]])),
-                        (np.array([predictions[0][sorted_predictions_indices[-1]]]), np.array([predictions[1][sorted_predictions_indices[-1]]])),
+                        (np.array([predictions[0][sorted_predictions_indices[0]]]), np.round([predictions[1][sorted_predictions_indices[0]]])),
+                        (np.array([predictions[0][sorted_predictions_indices[-1]]]), np.round([predictions[1][sorted_predictions_indices[-1]]])),
                     ]:
                         action_child = STS._add_guess(
                             best_guess, node, predictions, approx_cost_function
@@ -369,7 +370,7 @@ class STS:
                 elif al_method == "random":
                     best_guess_val_index = np.random.choice(len(predictions[0]), 1)
                     best_guess_indices = predictions[0][best_guess_val_index]
-                    best_guess_preds = predictions[1][best_guess_val_index]
+                    best_guess_preds = np.round(predictions[1][best_guess_val_index])
                     best_guess = (best_guess_indices, best_guess_preds)
                     action_child = STS._add_guess(
                         best_guess, node, predictions, approx_cost_function
