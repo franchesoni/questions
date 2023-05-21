@@ -124,14 +124,6 @@ def run_STS(predictions, labels, results, cost_fn="entropy"):
         question, optimal_cost, correct_prob = best_question_node.guess, best_question_node.cost, best_question_node.children_probs[1]
         entropy1 = entropy_given_state_preds_binary(root_node.state, (state["indices"], new_predictions))
         entropy2 = entropy_given_probs_binary(new_predictions)
-        # if optimal_cost > entropy1 + 1:
-        #     condition = n_questions == 1 or ((root_node.state['incorrect'] is not None) and (prev == 'above'))
-        #     print("above", condition)
-        #     prev = 'above'
-        # else:
-        #     condition = n_questions == 1 or ((root_node.state['incorrect'] is not None) and (prev == 'above'))
-        #     print("below", condition)
-        #     prev = 'below'
         estimated_costs.append((optimal_cost, entropy1, entropy2, n_questions))
         assert 0 < len(question[0]), "you should ask something"
         answer = bool((question[1] == labels[question[0]]).all())
