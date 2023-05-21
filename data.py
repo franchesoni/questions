@@ -361,12 +361,14 @@ class UnlabeledWrapper(InMemoryDataset):
         self.targets = None
 
 
-def get_labeled_unlabeled(train_dataset: InMemoryDataset, labeled_indices: list[int]):
+def get_labeled_unlabeled(train_dataset: InMemoryDataset, labeled_indices: list[int], torch_version=False):
     labeled_ds = train_dataset.get_new_ds_from_indices(labeled_indices)
     unlabeled_indices = list(set(range(len(train_dataset))) - set(labeled_indices))
     unlabeled_ds = UnlabeledWrapper(train_dataset).get_new_ds_from_indices(
         unlabeled_indices
     )  # indices are needed for selection and we unlabel the dataset to prove we aren't cheating
+    if torch_version:
+        return labeled_ds, unlabeled_ds, torch.tensor(unlabeled_indices)
     return labeled_ds, unlabeled_ds, np.array(unlabeled_indices)
 
 
