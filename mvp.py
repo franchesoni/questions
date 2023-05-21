@@ -5,7 +5,7 @@ from predictor import get_resnet
 from data import get_dataset, DATASET_NAMES
 
 def mvp1():
-    """Check whether we can train a resnet on few data for cifar"""
+    """Check whether we can train a resnet on few data for cifar (we can't)"""
     dataset_index = 0
     binarizer = "geq5"
     use_only_first = 6000
