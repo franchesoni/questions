@@ -1,4 +1,5 @@
-# This is the repository for the paper **Optimal and Efficient Binary Questioning for Human-in-the-Loop Annotation**
+# This is the repository for the paper
+anony
 
 ## Experiments
 Experiments are run from `main.py`. These are:
@@ -100,3 +101,14 @@ Breaking the interactive bottleneck in multi-class classification with active se
 Robust active learning with binary responses
 
 
+
+binary cls datasets:
+- sklearn:
+    - breast cancer https://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_breast_cancer.html
+- tf:
+    - cats_vs_dogs (images)
+    - titanic (tabular)
+    - yes_no (audio)
+    - bool_q (nlp)
+    - imdb_reviews (nlp)
+    - sentiment140 (if filtering out neutral tweets, nlp)
