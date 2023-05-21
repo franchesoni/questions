@@ -48,6 +48,35 @@ def fit_predictor(predictor, loss_fn, labeled_ds, n_epochs=24, verbose=True):
         print("Done fitting predictor with loss", loss.item(), "       ")
     return predictor
 
+def fit_predictor_batched(predictor, loss_fn, labeled_ds, batch_size, n_epochs=24, verbose=True):
+    """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
+    predictor.train()
+    optimizer = optimizer_setup(predictor, lr=0.01, optim="adam")
+
+    batch_size = min(batch_size, len(labeled_ds))
+    n_batches = len(labeled_ds) // batch_size
+    if verbose:
+        print(f"Fitting predictor for {n_epochs} epochs")
+    for epoch in range(n_epochs):
+        for batch in range(n_batches):
+            ds = labeled_ds.get_new_ds_from_indices(
+                list(range(batch * batch_size, (batch + 1) * batch_size))
+            )
+            output = predictor(ds.data)[:, 0]  # remove channel dimension
+            loss = loss_fn(output, ds.targets)  # outputs should be logits
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if verbose:
+                print(f"Epoch {epoch+1} / {n_epochs}, Batch {batch+1} / {n_batches}, loss {loss.item()}", end="\r")
+        if verbose:
+            # print(f"Epoch {epoch+1} / {n_epochs}, loss {loss.item()}", end="\r")
+            print(f"Epoch {epoch+1} / {n_epochs}, loss {loss.item()}")
+    if verbose:
+        print("Done fitting predictor with loss", loss.item(), "       ")
+    return predictor
+
+
 def fit_predictor_with_incorrect(predictor, loss_fn, labeled_ds, incorrect_x_y_hat, n_epochs=24, verbose=True):
     """Here we fit a pytorch model to the labeled dataset. We always allow the model to see visited_datapoints."""
     predictor.train()
