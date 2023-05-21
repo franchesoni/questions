@@ -390,11 +390,3 @@ def prepare_datasets(binarizer="geq5"):
         print_memory()
         gc.collect()
 
-
-### Intelligent annotation ###
-def get_initial_info(train_dataset, labeled_indices):
-    # this will be given as input to the joint model
-    # in general this is a set of possible leabelings but in fact can and should be reduced
-    # we have two cases, the case with the guess over n and the general case. They are so different computationally that we will treat them separately
-    # for the case using guesses we have that every positive answer gives us some labels over the data and every negative answer gives us some incorrect labels. Then we can fit the model to the labels so far and to the incorrect labels too. We should treat all answers equally. To do this we should build the set of correct labels and the set of incorrect labels. Then we sum the BCE losses for both cases. In this case the info will be {'labeled': ..., 'incorrect': ...}
-    raise NotImplementedError
