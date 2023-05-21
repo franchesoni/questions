@@ -1,5 +1,4 @@
-# This is the repository for the paper
-anony
+# This is the code repository for the paper **Optimal and Efficient Binary Questioning for Human-in-the-Loop Annotation**
 
 ## Experiments
 Experiments are run from `main.py`. These are:
