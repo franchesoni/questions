@@ -68,9 +68,9 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                 for exp_name in ["random", "uncertainty"]:
                     for dataset_index in [0, 3, 1, 2]:#, 4]:
                         for cost_fn in ["entropy", "length"]:
-                            for reduce_uncertainty_factor in [0.01]:#, 0.5, 0.9, 0.1]:
+                            for reduce_certainty_factor in [0.01]:#, 0.5, 0.9, 0.1]:
                                 if cost_fn == 'length':
-                                    reduce_uncertainty_factor = 0.05
+                                    reduce_certainty_factor = 0.05
                                 def update_predictor_fn(n_queries):
                                     if n_queries < 100:
                                         return True
@@ -85,7 +85,7 @@ def run_all_experiments(run=0, dev=False, profiler=None):
                                     "max_n": max_n,
                                     "al_method": exp_name,
                                     "cost_fn": cost_fn,
-                                    "reduce_certainty_factor":reduce_uncertainty_factor,
+                                    "reduce_certainty_factor":reduce_certainty_factor,
                                     "reset_tree":False,
                                 }
                                 exp_type = 'ia'
