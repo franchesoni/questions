@@ -26,7 +26,7 @@ def pretrain(dataset_index):
         use_only_first_test=use_only_first_test,
         device=device,
     )
-    train_ds = train_ds.get_new_ds_from_indices(np.arange(10000, len(train_ds)))
+    train_ds = train_ds.get_new_ds_from_indices(np.arange(6000, len(train_ds)))
     n_channels = train_ds.data[0].shape[0]
     predictor = get_resnet(
         pretrained=pretrained, n_channels=n_channels, compile=False, device=device
