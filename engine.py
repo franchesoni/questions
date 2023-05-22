@@ -94,7 +94,7 @@ def fit_predictor_with_incorrect(predictor, loss_fn, labeled_ds, incorrect_x_y_h
             prob_correct = torch.prod(pred_y_probs**y_hat * (1-pred_y_probs)**(1-y_hat))
             # that probability should be low
             loss_incorrect_term = torch.nn.functional.binary_cross_entropy(prob_correct, torch.tensor(0.0).to(prob_correct.device))
-            loss += loss_incorrect_term
+            loss += loss_incorrect_term / len(output)  # add to average, but now average is biased (should be multiplied by len(output) / (len(output) + 1)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
