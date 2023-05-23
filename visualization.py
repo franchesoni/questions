@@ -153,6 +153,18 @@ def box_and_whisker_plot(results, name):
     to_plot_names = ["IA", "Huffman", "Entropy"]
     to_plot_values = list(n_questions_results.values()) + [entropies]
 
+    print('='*20)
+    print(name)
+    print('mean entropy', f'{np.mean(to_plot_values[2]):.2f}')
+    print('mean n questions Huffman', f'{np.mean(to_plot_values[1]):.2f}')
+    print('mean n questions IA', f'{np.mean(to_plot_values[0]):.2f}')
+    print('mean difference Huffman', f'{np.mean(np.array(to_plot_values[1]) - np.array(to_plot_values[2])):.2f}')
+    print('mean difference IA', f'{np.mean(np.array(to_plot_values[0]) - np.array(to_plot_values[2])):.2f}')
+    print('mean percentual difference Huffman', f'{np.mean(np.array(to_plot_values[1]) / np.array(to_plot_values[2])):.2f}')
+    print('mean percentual difference IA', f'{np.mean(np.array(to_plot_values[0]) / np.array(to_plot_values[2])):.2f}')
+    return
+
+
     fig, ax = plt.subplots()
     plot = sns.boxplot(data=to_plot_values, ax=ax)
     sns.stripplot(data=to_plot_values, ax=ax)
@@ -502,8 +514,11 @@ def plot_curves3(curves, savename, max_queries=1000):
     datasets = set([curve['dataset'] for curve in curves])
 
     sns.set_theme('paper', font_scale=1.5)
-    for dataset in datasets:
-        print('plotting dataset...', dataset)
+    for dataset in sorted(datasets):
+
+        print('='*20)
+        print('dataset', dataset)
+        # print('plotting dataset...', dataset)
         seeds_dict = {}
         for curve in curves:
             if curve['dataset'] != dataset:
@@ -528,6 +543,7 @@ def plot_curves3(curves, savename, max_queries=1000):
         for i, name in enumerate(sorted(list(seeds_dict.keys()))):
             accs = []
             n_labelss = []
+            n_incorrects = []
             for seed_curve in seeds_dict[name]:
                 losses = [res["loss"] for res in seed_curve['curve']]
                 tps = np.array([res["tp"] for res in seed_curve['curve']])
@@ -549,6 +565,26 @@ def plot_curves3(curves, savename, max_queries=1000):
                                  color=colors[i], alpha=0.2, linestyle='dashed')
                 accs.append(accuracies)
                 n_labelss.append(n_labels)
+                n_incorrects.append(n_incorrect)
+
+            print('-'*20)
+            print('name', name)
+            ql2500 = np.mean([np.argmax(n_labels > 2500) for n_labels in n_labelss])
+            if ql2500 == 0:
+                ql2500 = 2500
+            print('Q_L2500',  ql2500, 'std', np.std([np.argmax(n_labels > 2500) for n_labels in n_labelss]))
+            print('maxQ', np.mean([len(n_labels) for n_labels in n_labelss]), 'std', np.std([len(n_labels) for n_labels in n_labelss]))
+            print('L_maxQ', np.mean([n_labels[-1] for n_labels in n_labelss]), 'std', np.std([n_labels[-1] for n_labels in n_labelss]))
+            print('#Inc_maxQ', np.mean([n_incorrect[-1] for n_incorrect in n_incorrects]), 'std', np.std([n_incorrect[-1] for n_incorrect in n_incorrects]))
+            print('Q_L2500',  ql2500/2500*100)
+
+            # for i in range(len(n_labelss)):
+            #     print('-'*20)
+            #     print('seed', i)
+            #     print('final n_incorrect', n_incorrects[i][-1])
+            #     print('final n_labels', n_labelss[i][-1])
+            #     # now we take the index for which n_labels is 2500
+            #     print('n questions for 2500 labels',  np.argmax(n_labelss[i] > 2500))
 
             maxlen = max([len(nl) for nl in n_labelss])
             # fill in the rest with the last value
@@ -583,7 +619,7 @@ def plot_curves3(curves, savename, max_queries=1000):
             y=np.arange(1),
             linewidth=1,
             color='black',
-            alpha=1,
+            alpha=0,
             linestyle='dashed',
             label='# of incorrect guesses'
         )
