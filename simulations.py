@@ -32,11 +32,9 @@ def generate_2d_gaussians_and_predictor(N, pos_center=[2]*2, pos_ratio=0.5):
 
     # our predictor is given by the same gaussians that generate the data
     def prob_neg_fn(x):
-        # the probability of belonging to the negative class is given by the probability of the negative 2d gaussian
         return 1 / (2 * np.pi) * np.exp(-0.5 * (x[:, 0] ** 2 + x[:, 1] ** 2))
 
     def prob_pos_fn(x):
-        # the probability of belonging to the positive class is given by the probability of the positive 2d gaussian
         return (
             1
             / (2 * np.pi)
