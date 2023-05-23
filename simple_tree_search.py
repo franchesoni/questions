@@ -300,7 +300,7 @@ class STS:
         # check_predictions(predictions)
         # expand a state node by considering actions in increasing n and their implied states
         # assert (node.state["indices"] == predictions[0]).all()
-        original_cost = node.cost  # this was computed at depth=0, we will update it with depth=1
+        # original_cost = node.cost  # this was computed at depth=0, we will update it with depth=1
         if len(node.action_children) == 0:
             best_cost = np.inf
         else:
